@@ -3,11 +3,11 @@ import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
 import { CreateUserInput } from './dto/create-user.input';
-import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
-import { RolesGuard } from '../../shared/guards/roles.guard';
-import { GqlThrottlerGuard } from '../../shared/guards/throttler.guard';
-import { Roles } from '../../shared/decorators/roles.decorator';
-import { CurrentUser } from '../../shared/decorators/current-user.decorator';
+import { JwtAuthGuard } from '@shared/guards/jwt-auth.guard';
+import { RolesGuard } from '@shared/guards/roles.guard';
+import { GqlThrottlerGuard } from '@shared/guards/throttler.guard';
+import { Roles } from '@shared/decorators/roles.decorator';
+import { CurrentUser } from '@shared/decorators/current-user.decorator';
 
 @Resolver(() => User)
 @UseGuards(GqlThrottlerGuard)

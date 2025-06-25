@@ -1,8 +1,31 @@
-# NestJS Blog API with Prisma and GraphQL
+# 🚀 NestJS Blog API with Dynamic GraphQL & Authentication
 
-A modern blog API built with NestJS, Prisma ORM, and GraphQL using a layered architecture with separated schemas.
+A modern, production-ready blog API built with **NestJS**, **Prisma ORM**, and **GraphQL** featuring dynamic module loading, JWT authentication, role-based authorization, and enterprise-level security.
 
-## Architecture
+## ✨ Special Features
+
+### 🔄 **Dynamic Module Loading**
+- **Zero manual imports** - Modules are automatically discovered and loaded
+- **Hot module addition** - Add new modules without touching `app.module.ts`
+- **Schema-first approach** - Each module controls its own GraphQL schema
+- **Automatic schema merging** - All schemas are combined dynamically
+
+### 🔐 **Enterprise Security**
+- **JWT Authentication** with refresh token support
+- **Role-based Authorization** (user/admin roles)
+- **Rate Limiting** (100 requests/minute)
+- **Input Validation** with GraphQL schema validation
+- **CSRF Protection** built-in
+- **Secure Headers** automatically applied
+
+### 🏗️ **Clean Architecture**
+- **Path Aliases** (`@shared/*`, `@core/*`, `@modules/*`)
+- **Modular Design** - Each feature is a separate module
+- **Type Safety** - Full TypeScript support
+- **Database Migrations** with Prisma
+- **Environment Configuration** with validation
+
+## 🏗️ Architecture
 
 ```
 src/
@@ -18,15 +41,20 @@ src/
 │       ├── auth.service.ts
 │       ├── auth.resolver.ts
 │       ├── auth.module.ts
+│       ├── jwt.strategy.ts
 │       └── auth.graphql
 ├── shared/           # Guards, Pipes, Filters, Decorators, Base Schema
 │   ├── guards/
-│   │   └── jwt-auth.guard.ts
+│   │   ├── jwt-auth.guard.ts
+│   │   ├── roles.guard.ts
+│   │   └── throttler.guard.ts
 │   ├── decorators/
-│   │   └── current-user.decorator.ts
+│   │   ├── current-user.decorator.ts
+│   │   └── roles.decorator.ts
 │   ├── schema/
 │   │   ├── base.graphql
-│   │   └── index.ts
+│   │   ├── schema-loader.service.ts
+│   │   └── schema.module.ts
 │   └── index.ts
 ├── modules/          # Feature modules with DTOs, Entities, Services, Resolvers, Schemas
 │   ├── user/
@@ -36,161 +64,69 @@ src/
 │   │   ├── user.resolver.ts
 │   │   ├── user.module.ts
 │   │   └── user.graphql
-│   └── post/
-│       ├── dto/
-│       ├── entities/
-│       ├── post.service.ts
-│       ├── post.resolver.ts
-│       ├── post.module.ts
-│       └── post.graphql
+│   └── [other-modules]/
 ├── utils/            # Helper functions
 │   ├── helpers.ts
 │   └── index.ts
 └── app.module.ts
 ```
 
-## Features
+## 🚀 Quick Start
 
-- **User Management**: Create and query users with password authentication
-- **Post Management**: Create and query posts with author relationships
-- **Authentication**: JWT-based authentication with bcrypt password hashing
-- **GraphQL API**: Schema-first approach with separated schemas per module
-- **Database**: SQLite with Prisma ORM (easily switchable to MySQL/PostgreSQL)
-- **Layered Architecture**: Clean separation of concerns
-- **Modular Schemas**: Each module controls its own GraphQL schema
+### Prerequisites
+- **Node.js** (v18 or higher)
+- **npm** or **yarn**
+- **SQLite** (or MySQL/PostgreSQL if configured)
 
-## Schema Separation
-
-This project uses a **schema-first approach** with separated GraphQL schemas:
-
-### Base Schema (`src/shared/schema/base.graphql`)
-```graphql
-scalar DateTime
-
-type Query {
-  _: Boolean
-}
-
-type Mutation {
-  _: Boolean
-}
+### 1. Clone & Install
+```bash
+git clone <your-repo-url>
+cd blog
+npm install
 ```
 
-### User Schema (`src/modules/user/user.graphql`)
-```graphql
-type User {
-  id: Int!
-  name: String!
-  email: String!
-  posts: [Post]
-  createdAt: DateTime!
-}
+### 2. Environment Setup
+Create a `.env` file in the root directory:
+```env
+# Database
+DATABASE_URL="file:./dev.db"
 
-input CreateUserInput {
-  name: String!
-  email: String!
-  id: Float
-  createdAt: DateTime
-  password: String!
-}
+# JWT Authentication
+JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
+JWT_EXPIRES_IN="1d"
 
-extend type Query {
-  users: [User!]!
-  user(id: Int!): User!
-}
-
-extend type Mutation {
-  createUser(createUserInput: CreateUserInput!): User!
-}
+# Optional: Production settings
+NODE_ENV="development"
+PORT=3000
 ```
 
-### Post Schema (`src/modules/post/post.graphql`)
-```graphql
-type Post {
-  id: Int!
-  title: String!
-  content: String!
-  published: Boolean!
-  authorId: Int!
-  author: User!
-  createdAt: DateTime!
-}
+### 3. Database Setup
+```bash
+# Generate Prisma client
+npx prisma generate
 
-input CreatePostInput {
-  title: String!
-  content: String!
-  authorId: Int!
-}
+# Run migrations
+npx prisma migrate dev --name init
 
-extend type Query {
-  posts: [Post!]!
-  post(id: Int!): Post!
-}
-
-extend type Mutation {
-  createPost(createPostInput: CreatePostInput!): Post!
-}
+# (Optional) Seed database
+npm run seed
 ```
 
-### Auth Schema (`src/core/auth/auth.graphql`)
-```graphql
-extend type Mutation {
-  login(email: String!, password: String!): String!
-}
+### 4. Start Development Server
+```bash
+npm run start:dev
 ```
 
-## Prerequisites
+### 5. Access GraphQL Playground
+Open [http://localhost:3000/graphql](http://localhost:3000/graphql)
 
-- Node.js (v16 or higher)
-- npm or yarn
-- SQLite (or MySQL/PostgreSQL if configured)
+## 🔐 Authentication & Authorization
 
-## Installation
+### User Roles
+- **`user`** - Basic access to own data
+- **`admin`** - Full access to all data
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd blog
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables**
-   Create a `.env` file in the root directory:
-   ```env
-   DATABASE_URL="file:./dev.db"
-   JWT_SECRET="your-super-secret-jwt-key"
-   JWT_EXPIRES_IN="1d"
-   ```
-
-4. **Generate Prisma client and run migrations**
-   ```bash
-   npx prisma generate
-   npx prisma migrate dev --name init
-   ```
-
-5. **Seed the database (optional)**
-   ```bash
-   npm run seed
-   ```
-
-6. **Start the development server**
-   ```bash
-   npm run start:dev
-   ```
-
-## Usage
-
-### GraphQL Playground
-
-Access the GraphQL playground at: `http://localhost:3000/graphql`
-
-### Example Queries and Mutations
-
-#### Create a User
+### Creating Users
 ```graphql
 mutation {
   createUser(createUserInput: {
@@ -201,214 +137,316 @@ mutation {
     id
     name
     email
-    createdAt
+    role
   }
 }
 ```
 
-#### Login
+### Login & Get JWT Token
 ```graphql
 mutation {
   login(email: "alice@example.com", password: "password123")
 }
 ```
 
-#### Create a Post
-```graphql
-mutation {
-  createPost(createPostInput: {
-    title: "My First Post"
-    content: "Hello, world!"
-    authorId: 1
-  }) {
-    id
-    title
-    content
-    published
-    author {
-      name
-      email
-    }
-    createdAt
-  }
+### Using JWT Token
+In GraphQL Playground, add to **HTTP HEADERS**:
+```json
+{
+  "Authorization": "Bearer <your-jwt-token>"
 }
 ```
 
-#### Query Users with Posts
+### Protected Queries
 ```graphql
+# Get current user (requires authentication)
+query {
+  me {
+    id
+    name
+    email
+    role
+  }
+}
+
+# Get all users (requires admin role)
 query {
   users {
     id
     name
     email
-    posts {
-      id
-      title
-      content
-      published
-    }
-    createdAt
+    role
   }
 }
 ```
 
-#### Query Posts with Authors
-```graphql
-query {
-  posts {
-    id
-    title
-    content
-    published
-    author {
-      id
-      name
-      email
-    }
-    createdAt
-  }
-}
-```
+## 🔄 Dynamic Module System
 
-## Authentication
+### Adding New Modules
+1. **Create module directory:**
+   ```bash
+   mkdir src/modules/post
+   ```
 
-### Using JWT Tokens
+2. **Create module files:**
+   ```typescript
+   // src/modules/post/post.module.ts
+   import { Module } from '@nestjs/common';
+   
+   @Module({
+     providers: [PostService, PostResolver],
+   })
+   export class PostModule {}
+   ```
 
-1. **Login to get a token:**
+3. **Create GraphQL schema:**
    ```graphql
-   mutation {
-     login(email: "alice@example.com", password: "password123")
+   # src/modules/post/post.graphql
+   type Post {
+     id: Int!
+     title: String!
+     content: String!
+     authorId: Int!
+     author: User!
+   }
+   
+   extend type Query {
+     posts: [Post!]!
+     post(id: Int!): Post!
    }
    ```
 
-2. **Use the token in HTTP headers:**
-   In GraphQL Playground, add to HTTP HEADERS:
-   ```json
-   {
-     "Authorization": "Bearer <your-jwt-token>"
-   }
-   ```
+4. **That's it!** The module is automatically loaded.
 
-### Protecting Routes
+### Module Discovery Rules
+- **Modules**: `src/modules/*/module-name.module.ts`
+- **Core**: `src/core/*/module-name.module.ts`
+- **Schemas**: `src/modules/*/module-name.graphql`
 
-To protect routes with JWT authentication, use the `@UseGuards(JwtAuthGuard)` decorator:
+## 🛡️ Security Features
 
+### Guards Usage
 ```typescript
 import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { JwtAuthGuard, RolesGuard, GqlThrottlerGuard } from '@shared/guards';
+import { Roles } from '@shared/decorators';
 
-@UseGuards(JwtAuthGuard)
-@Query(() => [Post])
-findAll() {
-  return this.postService.findAll();
+@Resolver()
+@UseGuards(GqlThrottlerGuard) // Rate limiting
+export class MyResolver {
+  
+  @Query()
+  @UseGuards(JwtAuthGuard) // Authentication required
+  publicQuery() { }
+  
+  @Query()
+  @UseGuards(JwtAuthGuard, RolesGuard) // Auth + Role check
+  @Roles('admin') // Admin only
+  adminQuery() { }
 }
 ```
 
-## Database Configuration
+### Rate Limiting
+- **Default**: 100 requests per minute
+- **Configurable** in `app.module.ts`
+- **Per-endpoint** customization available
 
-### SQLite (Default)
-```env
-DATABASE_URL="file:./dev.db"
-```
+## 🏷️ Path Aliases
 
-### MySQL
-```env
-DATABASE_URL="mysql://username:password@localhost:3306/nest_blog"
-```
-
-### PostgreSQL
-```env
-DATABASE_URL="postgresql://username:password@localhost:5432/nest_blog"
-```
-
-## Available Scripts
-
-- `npm run start:dev` - Start development server with hot reload
-- `npm run build` - Build the application
-- `npm run start` - Start production server
-- `npm run test` - Run tests
-- `npm run seed` - Seed the database with sample data
-
-## Project Structure Details
-
-### Config Layer
-- Environment variable management
-- Configuration validation
-- Centralized configuration for all modules
-
-### Core Layer
-- **Prisma Service**: Database connection and ORM
-- **Auth Service**: JWT authentication and user validation
-- **Logger**: Centralized logging (can be added)
-
-### Shared Layer
-- **Guards**: Authentication and authorization guards
-- **Decorators**: Custom decorators for extracting user context
-- **Base Schema**: Common GraphQL types and scalars
-- **Pipes**: Validation pipes (can be added)
-- **Filters**: Exception filters (can be added)
-
-### Modules Layer
-- **User Module**: User management with DTOs, entities, services, resolvers, and schema
-- **Post Module**: Post management with author relationships and schema
-
-### Utils Layer
-- Helper functions for common operations
-- Utility functions for data formatting and validation
-
-## Schema Management
-
-### Adding New Types
-1. Create a new `.graphql` file in your module
-2. Define your types using SDL (Schema Definition Language)
-3. Use `extend type Query` or `extend type Mutation` to add operations
-4. Add the schema file path to `app.module.ts` in the `typePaths` array
-
-### Example: Adding a Comment Module
-```graphql
-# src/modules/comment/comment.graphql
-type Comment {
-  id: Int!
-  content: String!
-  postId: Int!
-  authorId: Int!
-  post: Post!
-  author: User!
-  createdAt: DateTime!
-}
-
-input CreateCommentInput {
-  content: String!
-  postId: Int!
-  authorId: Int!
-}
-
-extend type Query {
-  comments: [Comment!]!
-  comment(id: Int!): Comment!
-}
-
-extend type Mutation {
-  createComment(createCommentInput: CreateCommentInput!): Comment!
-}
-```
-
-Then add to `app.module.ts`:
+### Available Aliases
 ```typescript
-typePaths: [
-  // ... existing paths
-  join(process.cwd(), 'src/modules/comment/comment.graphql'),
-],
+import { JwtAuthGuard } from '@shared/guards/jwt-auth.guard';
+import { UserService } from '@modules/user/user.service';
+import { PrismaService } from '@core/prisma/prisma.service';
+import { helpers } from '@utils/helpers';
 ```
 
-## Contributing
+### Configuration
+- **TypeScript**: `tsconfig.json` paths
+- **Runtime**: `tsconfig-paths/register`
+- **Build**: Automatic path resolution
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+## 📊 Database Management
 
-## License
+### Prisma Commands
+```bash
+# Generate client
+npx prisma generate
+
+# Run migrations
+npx prisma migrate dev --name <migration-name>
+
+# Reset database
+npx prisma migrate reset
+
+# Open Prisma Studio
+npx prisma studio
+
+# Seed database
+npm run seed
+```
+
+### Making Users Admin
+```bash
+# Using Prisma Studio
+npx prisma studio
+# Then update user.role = "admin"
+
+# Or using direct SQL
+sqlite3 prisma/dev.db "UPDATE User SET role = 'admin' WHERE email = 'user@example.com';"
+```
+
+## 🚀 Production Deployment
+
+### Build & Start
+```bash
+# Build for production
+npm run build
+
+# Start production server
+npm run start:prod
+```
+
+### Environment Variables
+```env
+# Production settings
+NODE_ENV=production
+DATABASE_URL="postgresql://user:pass@localhost:5432/blog"
+JWT_SECRET="very-long-secret-key-here"
+JWT_EXPIRES_IN="1h"
+PORT=3000
+```
+
+### Docker Support
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY dist ./dist
+EXPOSE 3000
+CMD ["npm", "run", "start:prod"]
+```
+
+## 🧪 Testing
+
+### Available Scripts
+```bash
+# Development
+npm run start:dev      # Watch mode
+npm run start:debug    # Debug mode
+
+# Production
+npm run build          # Build
+npm run start:prod     # Production start
+
+# Database
+npm run db:migrate     # Run migrations
+npm run db:generate    # Generate Prisma client
+npm run db:studio      # Open Prisma Studio
+
+# Code Quality
+npm run lint           # ESLint
+npm run format         # Prettier
+```
+
+## 🔧 Configuration
+
+### JWT Configuration
+```typescript
+// src/config/jwt.config.ts
+export default registerAs('jwt', () => ({
+  secret: process.env.JWT_SECRET || 'fallback-secret',
+  expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+}));
+```
+
+### Database Configuration
+```typescript
+// src/config/database.config.ts
+export default registerAs('database', () => ({
+  url: process.env.DATABASE_URL,
+}));
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**1. Dynamic modules not loading**
+```bash
+# Check if modules are in correct location
+ls src/modules/*/module-name.module.ts
+
+# Rebuild project
+npm run build
+```
+
+**2. JWT authentication failing**
+```bash
+# Check JWT_SECRET in .env
+# Verify token format: "Bearer <token>"
+# Check token expiration
+```
+
+**3. Path aliases not working**
+```bash
+# Install tsconfig-paths
+npm install tsconfig-paths
+
+# Check tsconfig.json paths configuration
+# Ensure tsconfig-paths/register is imported in main.ts
+```
+
+**4. Database connection issues**
+```bash
+# Check DATABASE_URL in .env
+# Run migrations: npx prisma migrate dev
+# Generate client: npx prisma generate
+```
+
+## 📝 API Examples
+
+### Complete Authentication Flow
+```bash
+# 1. Create user
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation { createUser(createUserInput: { name: \"Test\", email: \"test@example.com\", password: \"password123\" }) { id name email role } }"}'
+
+# 2. Login
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation { login(email: \"test@example.com\", password: \"password123\") }"}'
+
+# 3. Use protected endpoint
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -d '{"query":"{ me { id name email role } }"}'
+```
+
+## 🤝 Contributing
+
+1. **Fork** the repository
+2. **Create** a feature branch
+3. **Add** your module following the dynamic loading pattern
+4. **Test** with authentication and authorization
+5. **Submit** a pull request
+
+## 📄 License
 
 This project is licensed under the MIT License.
+
+---
+
+## 🎯 Key Benefits
+
+✅ **Zero Configuration** - Dynamic module loading  
+✅ **Enterprise Security** - JWT + Role-based auth  
+✅ **Type Safety** - Full TypeScript support  
+✅ **Scalable Architecture** - Modular design  
+✅ **Production Ready** - Rate limiting, validation  
+✅ **Developer Friendly** - Clean imports, hot reload  
+
+**Ready to build amazing APIs! 🚀**

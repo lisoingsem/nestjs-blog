@@ -5,8 +5,8 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
 import { PrismaModule } from './core/prisma/prisma.module';
-import { SchemaLoaderService } from './shared/schema';
-import { SchemaModule } from './shared/schema/schema.module';
+import { SchemaLoaderService } from '@shared/schema';
+import { SchemaModule } from '@shared/schema/schema.module';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 

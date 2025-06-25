@@ -1,38 +1,9 @@
-import { UseGuards } from '@nestjs/common';
-import { Resolver, Mutation, Args, ObjectType, Field } from '@nestjs/graphql';
+import { UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Resolver, Mutation, Args } from '@nestjs/graphql';
 import { AuthService } from './auth.service';
 import { GlobalAuthGuard } from '@shared/guards';
-import { CurrentUser, Public } from '@shared/decorators';
-
-@ObjectType()
-class LoginResponse {
-  @Field()
-  access_token: string;
-
-  @Field()
-  user_id: number;
-
-  @Field()
-  email: string;
-
-  @Field({ nullable: true })
-  name?: string;
-
-  @Field()
-  message: string;
-
-  @Field()
-  success: boolean;
-}
-
-@ObjectType()
-class LogoutResponse {
-  @Field()
-  message: string;
-
-  @Field()
-  success: boolean;
-}
+import { CurrentUser } from '@shared/decorators';
+import { LoginResponse, LogoutResponse } from './types';
 
 @Resolver()
 @UseGuards(GlobalAuthGuard)
@@ -40,28 +11,27 @@ export class AuthResolver {
   constructor(private authService: AuthService) {}
 
   @Mutation(() => LoginResponse)
-  @Public()
   async login(
     @Args('email') email: string,
     @Args('password') password: string,
   ) {
-    const result = await this.authService.login(email, password);
-    return {
-      access_token: result.access_token,
-      user_id: result.user.id,
-      email: result.user.email,
-      name: result.user.name || null,
-      message: 'Login successful',
-      success: true,
-    };
+    try {
+      const result = await this.authService.login(email, password);
+
+      return result;
+    } catch (error) { 
+      throw new UnauthorizedException(error.message || 'Failed to login');
+    }
   }
 
   @Mutation(() => LogoutResponse)
   async logout(@CurrentUser() currentUser: any) {
-    const result = await this.authService.logout(currentUser.id);
-    return { 
-      message: result.message,
-      success: result.success,
-    };
+    try {
+      const result = await this.authService.logout(currentUser.id);
+
+      return result;
+    } catch (error) {
+      throw new UnauthorizedException(error.message || 'Failed to logout');
+    }
   }
 }

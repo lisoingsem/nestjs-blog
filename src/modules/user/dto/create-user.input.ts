@@ -1,4 +1,4 @@
-import { InputType, Field, Float } from '@nestjs/graphql';
+import { InputType, Field } from '@nestjs/graphql';
 
 @InputType()
 export class CreateUserInput {
@@ -7,12 +7,6 @@ export class CreateUserInput {
 
   @Field()
   email: string;
-
-  @Field(() => Float, { nullable: true })
-  id?: number;
-
-  @Field({ nullable: true })
-  createdAt?: Date;
 
   @Field()
   password: string;

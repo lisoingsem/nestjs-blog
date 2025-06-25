@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -18,20 +18,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Get user from database to ensure they still exist
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-    });
-    
-    if (!user) {
-      return null;
-    }
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
 
-    // Return user object (will be available in req.user)
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    };
+      if (!user) {
+        return null;
+      }
+      
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid token or user not found');
+    }
   }
 } 

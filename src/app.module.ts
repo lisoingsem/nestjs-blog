@@ -2,6 +2,7 @@ import { Module, DynamicModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { SchemaLoaderService } from './shared/schema';
@@ -37,6 +38,12 @@ export class AppModule {
           isGlobal: true,
           load: [databaseConfig, jwtConfig],
         }),
+        ThrottlerModule.forRoot([
+          {
+            ttl: 60000, // 1 minute
+            limit: 100, // 100 requests per minute
+          },
+        ]),
         GraphQLModule.forRoot<ApolloDriverConfig>({
           driver: ApolloDriver,
           typePaths: schemaPaths,
@@ -46,6 +53,7 @@ export class AppModule {
           sortSchema: true,
           playground: true,
           introspection: true,
+          context: ({ req }) => ({ req }),
         }),
         PrismaModule,
         SchemaModule,

@@ -2,6 +2,7 @@ type User {
   id: Int!
   name: String!
   email: String!
+  role: String!
   createdAt: DateTime!
 }
 
@@ -16,6 +17,7 @@ input CreateUserInput {
 extend type Query {
   users: [User!]!
   user(id: Int!): User!
+  me: User!
 }
 
 extend type Mutation {

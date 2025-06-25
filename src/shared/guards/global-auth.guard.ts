@@ -1,4 +1,4 @@
-import { Injectable, ExecutionContext, CanActivate } from '@nestjs/common';
+import { Injectable, ExecutionContext, CanActivate, UnauthorizedException } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { firstValueFrom, Observable } from 'rxjs';
 
@@ -9,15 +9,11 @@ export class GlobalAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Use JWT authentication
-    const result = this.jwtAuthGuard.canActivate(context);
-    
-    // Handle both boolean and Observable<boolean> returns
-    if (typeof result === 'boolean') {
+    try {
+      const result = await firstValueFrom(this.jwtAuthGuard.canActivate(context) as Observable<boolean>);
       return result;
+    } catch (error) {
+      throw new UnauthorizedException(error.message || 'Failed to authenticate');
     }
-    
-    // Convert Observable to Promise
-    return firstValueFrom(result as Observable<boolean>);
   }
 } 

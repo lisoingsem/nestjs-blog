@@ -33,14 +33,12 @@ function getModelsWithSoftDelete(): string[] {
     return models;
   } catch (error) {
     console.warn('Could not detect models with soft delete, using fallback:', error.message);
-    // Fallback to common models
     return [];
   }
 }
 
 export function softDeleteMiddleware(): Prisma.Middleware {
   return async (params, next) => {
-    // Only apply to find queries
     if (
       ['findUnique', 'findFirst', 'findMany'].includes(params.action) &&
       params.model &&

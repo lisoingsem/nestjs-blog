@@ -55,12 +55,12 @@ export class SchemaLoaderService {
             ) as Type<any>;
             if (moduleClass) {
               modules.push(moduleClass);
-              console.log(`✅ Successfully loaded module: ${moduleDir}`);
+              console.log(`Successfully loaded module: ${moduleDir}`);
             } else {
-              console.warn(`⚠️ No module class found in ${moduleFile}`);
+              console.warn(`No module class found in ${moduleFile}`);
             }
           } catch (error) {
-            console.warn(`❌ Failed to load module ${moduleDir}:`, error.message);
+            console.warn(`Failed to load module ${moduleDir}:`, error.message);
           }
         }
       }
@@ -86,12 +86,12 @@ export class SchemaLoaderService {
             ) as Type<any>;
             if (moduleClass) {
               modules.push(moduleClass);
-              console.log(`✅ Successfully loaded core module: ${coreDir}`);
+              console.log(`Successfully loaded core module: ${coreDir}`);
             } else {
-              console.warn(`⚠️ No module class found in ${moduleFile}`);
+              console.warn(`No module class found in ${moduleFile}`);
             }
           } catch (error) {
-            console.warn(`❌ Failed to load core module ${coreDir}:`, error.message);
+            console.warn(`Failed to load core module ${coreDir}:`, error.message);
           }
         }
       }

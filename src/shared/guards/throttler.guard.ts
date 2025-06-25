@@ -13,7 +13,7 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const { req, res } = this.getRequestResponse(context);
     if (!req || !res) {
-      return true; // Skip throttling if no request/response
+      return true;
     }
     return super.canActivate(context);
   }

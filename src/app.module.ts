@@ -1,5 +1,5 @@
 import { Module, DynamicModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -20,8 +20,6 @@ export class AppModule {
     // Dynamically load all modules
     const discoveredModules = await schemaLoader.loadAllModules();
     
-    console.log('Discovered modules:', discoveredModules.map(m => m.name));
-
     return {
       module: AppModule,
       imports: [
@@ -29,12 +27,16 @@ export class AppModule {
           isGlobal: true,
           load: [databaseConfig, jwtConfig, securityConfig],
         }),
-        ThrottlerModule.forRoot([
-          {
-            ttl: 60000, // 1 minute
-            limit: 10, // 10 requests per minute
-          },
-        ]),
+        ThrottlerModule.forRootAsync({
+          imports: [ConfigModule],
+          inject: [ConfigService],
+          useFactory: (configService: ConfigService) => [
+            {
+              ttl: configService.get('security.throttling.ttl') || 60000,
+              limit: configService.get('security.throttling.limit') || 10,
+            },
+          ],
+        }),
         GraphQLModule.forRoot<ApolloDriverConfig>({
           driver: ApolloDriver,
           autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
@@ -43,13 +45,12 @@ export class AppModule {
           introspection: true,
           context: ({ req }) => ({ 
             req,
-            // Add security context
             isAuthenticated: !!req.user,
             user: req.user,
           }),
         }),
         PrismaModule,
-        ...discoveredModules, // Dynamically include all discovered modules
+        ...discoveredModules,
       ],
       providers: [
         SecurityService,

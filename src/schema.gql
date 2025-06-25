@@ -2,14 +2,12 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type Post {
-  id: Int!
-  title: String!
-  content: String!
-  published: Boolean!
-  authorId: Int!
-  author: User!
-  createdAt: DateTime!
+input CreateUserInput {
+  createdAt: DateTime
+  email: String!
+  id: Float
+  name: String!
+  password: String!
 }
 
 """
@@ -17,37 +15,39 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
-type User {
-  id: Int!
-  name: String!
+type LoginResponse {
+  access_token: String!
   email: String!
-  posts: [Post]
-  createdAt: DateTime!
+  message: String!
+  name: String
+  success: Boolean!
+  user_id: Float!
 }
 
-type Query {
-  users: [User!]!
-  user(id: Int!): User!
-  posts: [Post!]!
-  post(id: Int!): Post!
+type LogoutResponse {
+  message: String!
+  success: Boolean!
 }
 
 type Mutation {
   createUser(createUserInput: CreateUserInput!): User!
-  createPost(createPostInput: CreatePostInput!): Post!
-  login(email: String!, password: String!): String!
+  login(email: String!, password: String!): LoginResponse!
+  logout: LogoutResponse!
+  restoreUser(id: Int!): User!
+  softDeleteUser(id: Int!): User!
 }
 
-input CreateUserInput {
-  name: String!
+type Query {
+  me: User!
+  user(id: Int!): User!
+  users: [User!]!
+}
+
+type User {
+  createdAt: DateTime!
+  deletedAt: DateTime
   email: String!
-  id: Float
-  createdAt: DateTime
-  password: String!
-}
-
-input CreatePostInput {
-  title: String!
-  content: String!
-  authorId: Int!
+  id: Int!
+  name: String!
+  updatedAt: DateTime!
 }

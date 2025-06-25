@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '@core/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -29,6 +29,25 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
       user,
+    };
+  }
+
+  async logout(userId: number) {
+    // For now, just return a success message
+    // In a production app, you might want to:
+    // 1. Add the token to a blacklist
+    // 2. Update user's last logout time
+    // 3. Invalidate refresh tokens
+    
+    // Optional: Update user's last logout time
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { updatedAt: new Date() },
+    });
+
+    return {
+      message: 'Successfully logged out',
+      success: true,
     };
   }
 }

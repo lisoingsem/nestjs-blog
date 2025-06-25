@@ -6,9 +6,11 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { SchemaLoaderService } from '@shared/schema';
-import { SchemaModule } from '@shared/schema/schema.module';
-import databaseConfig from './config/database.config';
-import jwtConfig from './config/jwt.config';
+import { GlobalAuthGuard } from '@shared/guards';
+import { SecurityService } from '@shared/services';
+import databaseConfig from '@config/database.config';
+import jwtConfig from '@config/jwt.config';
+import securityConfig from '@config/security.config';
 
 @Module({})
 export class AppModule {
@@ -18,47 +20,45 @@ export class AppModule {
     // Dynamically load all modules
     const discoveredModules = await schemaLoader.loadAllModules();
     
-    // Get schema paths
-    const schemaPaths = await schemaLoader.loadAllSchemas();
-    
-    // Validate schemas
-    const { valid, missing } = await schemaLoader.validateSchemas();
-    if (missing.length > 0) {
-      console.warn('Modules without schema files:', missing);
-    }
-    
     console.log('Discovered modules:', discoveredModules.map(m => m.name));
-    console.log('Loaded schemas:', valid);
-    console.log('Schema paths:', schemaPaths);
 
     return {
       module: AppModule,
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [databaseConfig, jwtConfig],
+          load: [databaseConfig, jwtConfig, securityConfig],
         }),
         ThrottlerModule.forRoot([
           {
             ttl: 60000, // 1 minute
-            limit: 100, // 100 requests per minute
+            limit: 10, // 10 requests per minute
           },
         ]),
         GraphQLModule.forRoot<ApolloDriverConfig>({
           driver: ApolloDriver,
-          typePaths: schemaPaths,
-          definitions: {
-            path: join(process.cwd(), 'src/graphql.ts'),
-          },
+          autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
           sortSchema: true,
           playground: true,
           introspection: true,
-          context: ({ req }) => ({ req }),
+          context: ({ req }) => ({ 
+            req,
+            // Add security context
+            isAuthenticated: !!req.user,
+            user: req.user,
+          }),
         }),
         PrismaModule,
-        SchemaModule,
         ...discoveredModules, // Dynamically include all discovered modules
       ],
+      providers: [
+        SecurityService,
+        {
+          provide: 'APP_GUARD',
+          useClass: GlobalAuthGuard,
+        },
+      ],
+      exports: [SecurityService],
     };
   }
 }

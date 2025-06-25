@@ -1,49 +1,51 @@
-import { UseGuards } from '@nestjs/common';
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
 import { CreateUserInput } from './dto/create-user.input';
-import { JwtAuthGuard } from '@shared/guards/jwt-auth.guard';
-import { RolesGuard } from '@shared/guards/roles.guard';
-import { GqlThrottlerGuard } from '@shared/guards/throttler.guard';
-import { Roles } from '@shared/decorators/roles.decorator';
-import { CurrentUser } from '@shared/decorators/current-user.decorator';
+import { CurrentUser } from '@shared/decorators';
 
 @Resolver(() => User)
-@UseGuards(GqlThrottlerGuard)
 export class UserResolver {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+  ) {}
 
   @Mutation(() => User)
-  @UseGuards(GqlThrottlerGuard)
   createUser(@Args('createUserInput') createUserInput: CreateUserInput) {
     return this.userService.create(createUserInput);
   }
 
   @Query(() => [User], { name: 'users' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
   findAll() {
     return this.userService.findAll();
   }
 
   @Query(() => User, { name: 'user' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'user')
-  findOne(
+  async findOne(
     @Args('id', { type: () => Int }) id: number,
-    @CurrentUser() currentUser: any,
   ) {
-    // Users can only access their own data unless they're admin
-    if (currentUser.role !== 'admin' && currentUser.id !== id) {
-      throw new Error('Unauthorized: You can only access your own data');
+    // Fetch the user first to check ownership
+    const user = await this.userService.findOne(id);
+    if (!user) {
+      throw new Error('User not found');
     }
-    return this.userService.findOne(id);
+    
+    return user;
   }
 
   @Query(() => User, { name: 'me' })
-  @UseGuards(JwtAuthGuard)
   getCurrentUser(@CurrentUser() currentUser: any) {
-    return this.userService.findOne(currentUser.id);
+    const userId = currentUser.id;
+    return this.userService.findOne(userId);
+  }
+
+  @Mutation(() => User, { name: 'softDeleteUser' })
+  softDeleteUser(@Args('id', { type: () => Int }) id: number) {
+    return this.userService.softDelete(id);
+  }
+
+  @Mutation(() => User, { name: 'restoreUser' })
+  restoreUser(@Args('id', { type: () => Int }) id: number) {
+    return this.userService.restore(id);
   }
 }

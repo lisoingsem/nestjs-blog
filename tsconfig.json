@@ -14,7 +14,8 @@
       "@core/*": ["core/*"],
       "@modules/*": ["modules/*"],
       "@shared/*": ["shared/*"],
-      "@utils/*": ["utils/*"]
+      "@utils/*": ["utils/*"],
+      "@config/*": ["config/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

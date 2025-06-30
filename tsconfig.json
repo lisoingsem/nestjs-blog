@@ -13,9 +13,11 @@
     "paths": {
       "@core/*": ["core/*"],
       "@modules/*": ["modules/*"],
-      "@shared/*": ["shared/*"],
-      "@utils/*": ["utils/*"],
-      "@config/*": ["config/*"]
+      "@prisma/*": ["prisma/*"],
+      "@common/*": ["common/*"],
+      "@cron/*": ["cron/*"],
+      "@config/*": ["config/*"],
+      "@shared/*": ["shared/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

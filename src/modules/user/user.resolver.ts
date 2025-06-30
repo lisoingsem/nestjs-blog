@@ -1,62 +1,45 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
-import { User } from './entities/user.entity';
 import { CreateUserInput } from './dto';
-import { CurrentUser } from '@shared/decorators';
+import { CurrentUser } from '@shared/decorators/current-user.decorator';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 
 @Resolver(() => User)
 export class UserResolver {
-  constructor(
-    private readonly userService: UserService,
-  ) {}
+  constructor(private readonly userService: UserService) {}
+
+  @Query(() => [User], { name: 'users' })
+  @UseGuards(JwtAuthGuard)
+  async findAll() {
+    return this.userService.findAll();
+  }
+
+  @Query(() => User, { name: 'user' })
+  @UseGuards(JwtAuthGuard)
+  async findOne(
+    @Args('id', { type: () => Int }) id: number,
+  ) {
+    return this.userService.findOne(id);
+  }
 
   @Mutation(() => User)
   async createUser(@Args('createUserInput') createUserInput: CreateUserInput) {
     return this.userService.create(createUserInput);
   }
 
-  @Query(() => [User], { name: 'users' })
-  async findAll() {
-    return this.userService.findAll();
-  }
-
-  @Query(() => User, { name: 'user' })
-  async findOne(
+  @Mutation()
+  @UseGuards(JwtAuthGuard)
+  async updateUser(
     @Args('id', { type: () => Int }) id: number,
+    @Args('updateUserInput') updateUserInput: any,
   ) {
-    const user = await this.userService.findOne(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    
-    return user;
+    return this.userService.update(id, updateUserInput);
   }
 
-  @Query(() => User, { name: 'me' })
-  async getCurrentUser(@CurrentUser() currentUser: any) {
-    const userId = currentUser.id;
-    const user = await this.userService.findOne(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    return user;
-  }
-
-  @Mutation(() => User, { name: 'softDeleteUser' })
-  async softDeleteUser(@Args('id', { type: () => Int }) id: number) {
-    const user = await this.userService.delete(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    return user;
-  }
-
-  @Mutation(() => User, { name: 'restoreUser' })
-  async restoreUser(@Args('id', { type: () => Int }) id: number) {
-    const user = await this.userService.restore(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    return user;
+  @Mutation()
+  @UseGuards(JwtAuthGuard)
+  async removeUser(@Args('id', { type: () => Int }) id: number) {
+    return this.userService.remove(id);
   }
 }

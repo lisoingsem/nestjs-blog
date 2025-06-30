@@ -16,7 +16,10 @@
     "seed": "ts-node --transpile-only prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "generate-schema": "cat src/**/*.prisma > prisma/schema.prisma",
+    "migrate": "npm run generate-schema && prisma migrate dev --preview-feature --name $npm_config_name && prisma generate",
+    "cli": "node scripts/cli.js"
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",

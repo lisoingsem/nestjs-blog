@@ -10,7 +10,6 @@ export class UserResolver {
   constructor(private readonly userService: UserService) {}
 
   @Query(() => [User], { name: 'users' })
-  @UseGuards(JwtAuthGuard)
   async findAll() {
     return this.userService.findAll();
   }

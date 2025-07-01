@@ -4,7 +4,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
-import { PrismaModule } from '@prisma/prisma.module';
+import { PrismaModule } from '@common/prisma';
 import { ModuleLoaderService } from '@common/modules';
 import { SecurityService } from '@common/services/security.service';
 import databaseConfig from '@config/database.config';

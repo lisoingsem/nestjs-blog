@@ -1,13 +1,13 @@
-import { Injectable, ConflictException, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { CreateUserInput, UpdateUserInput } from './dto';
-import { UserInterface } from './user.interface';
+import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
   constructor(
-    private userRepository: UserInterface
+    private userRepository: UserRepository
   ) {}
 
   async findAll(): Promise<User[]> {

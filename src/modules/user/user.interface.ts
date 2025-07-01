@@ -11,6 +11,3 @@ export interface UserInterface {
   softDelete(id: number): Promise<void>;
   existsByEmail(email: string): Promise<boolean>;
 }
-
-// Token for dependency injection
-export const USER_REPOSITORY_TOKEN = 'USER_REPOSITORY';

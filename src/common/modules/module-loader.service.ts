@@ -3,7 +3,7 @@ import { readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
 @Injectable()
-export class SchemaLoaderService {
+export class ModuleLoaderService {
   private readonly srcPath = join(process.cwd(), 'src');
 
   /**
@@ -13,7 +13,7 @@ export class SchemaLoaderService {
     const schemaPaths: string[] = [];
 
     // Add base schema first (this defines Query, Mutation, and DateTime)
-    const baseSchemaPath = join(this.srcPath, 'shared', 'schema', 'base.graphql');
+    const baseSchemaPath = join(this.srcPath, 'common', 'schema', 'base.graphql');
     if (existsSync(baseSchemaPath)) {
       schemaPaths.push(baseSchemaPath);
     }

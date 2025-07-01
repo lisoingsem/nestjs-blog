@@ -28,7 +28,7 @@ export const softDeleteMiddleware = (): Prisma.Middleware => {
       return modelBlock && modelBlock.includes('deletedAt');
     });
 
-    if (modelsWithSoftDelete.includes(params.model)) {
+    if (params.model && modelsWithSoftDelete.includes(params.model)) {
       if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'findUnique') {
         // Add deletedAt filter to exclude soft-deleted records
         if (params.args?.where) {

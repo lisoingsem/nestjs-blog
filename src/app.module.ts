@@ -4,10 +4,9 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
-import { PrismaModule } from './core/prisma/prisma.module';
-import { SchemaLoaderService } from '@shared/schema';
-import { GlobalAuthGuard } from '@shared/guards';
-import { SecurityService } from '@shared/services';
+import { PrismaModule } from '@prisma/prisma.module';
+import { ModuleLoaderService } from '@common/modules';
+import { SecurityService } from '@common/services/security.service';
 import databaseConfig from '@config/database.config';
 import jwtConfig from '@config/jwt.config';
 import securityConfig from '@config/security.config';
@@ -15,10 +14,10 @@ import securityConfig from '@config/security.config';
 @Module({})
 export class AppModule {
   static async forRoot(): Promise<DynamicModule> {
-    const schemaLoader = new SchemaLoaderService();
+    const moduleLoader = new ModuleLoaderService();
     
     // Dynamically load all modules
-    const discoveredModules = await schemaLoader.loadAllModules();
+    const discoveredModules = await moduleLoader.loadAllModules();
     
     return {
       module: AppModule,
@@ -43,21 +42,12 @@ export class AppModule {
           sortSchema: true,
           playground: true,
           introspection: true,
-          context: ({ req }) => ({ 
-            req,
-            isAuthenticated: !!req.user,
-            user: req.user,
-          }),
         }),
         PrismaModule,
         ...discoveredModules,
       ],
       providers: [
         SecurityService,
-        {
-          provide: 'APP_GUARD',
-          useClass: GlobalAuthGuard,
-        },
       ],
       exports: [SecurityService],
     };

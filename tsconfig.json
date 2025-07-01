@@ -16,8 +16,7 @@
       "@prisma/*": ["prisma/*"],
       "@common/*": ["common/*"],
       "@cron/*": ["cron/*"],
-      "@config/*": ["config/*"],
-      "@shared/*": ["shared/*"]
+      "@config/*": ["config/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

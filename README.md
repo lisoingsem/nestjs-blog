@@ -19,7 +19,7 @@ A modern, production-ready blog API built with **NestJS**, **Prisma ORM**, and *
 - **Secure Headers** automatically applied
 
 ### 🏗️ **Clean Architecture**
-- **Path Aliases** (`@shared/*`, `@core/*`, `@modules/*`)
+- **Path Aliases** (`@common/*`, `@core/*`, `@modules/*`)
 - **Modular Design** - Each feature is a separate module
 - **Type Safety** - Full TypeScript support
 - **Database Migrations** with Prisma
@@ -228,8 +228,8 @@ query {
 ### Guards Usage
 ```typescript
 import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard, RolesGuard, GqlThrottlerGuard } from '@shared/guards';
-import { Roles } from '@shared/decorators';
+import { JwtAuthGuard, RolesGuard, GqlThrottlerGuard } from '@common/guards';
+import { Roles } from '@common/decorators';
 
 @Resolver()
 @UseGuards(GqlThrottlerGuard) // Rate limiting
@@ -255,7 +255,7 @@ export class MyResolver {
 
 ### Available Aliases
 ```typescript
-import { JwtAuthGuard } from '@shared/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { UserService } from '@modules/user/user.service';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { helpers } from '@utils/helpers';

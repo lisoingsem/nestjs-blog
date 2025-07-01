@@ -3,9 +3,7 @@
 # ------------------------------------------------------
 
 input CreateUserInput {
-  createdAt: DateTime
   email: String!
-  id: Float
   name: String!
   password: String!
 }
@@ -17,30 +15,38 @@ scalar DateTime
 
 type LoginResponse {
   access_token: String!
-  email: String!
-  message: String!
-  name: String
-  success: Boolean!
-  user_id: Float!
-}
-
-type LogoutResponse {
-  message: String!
-  success: Boolean!
+  user: UserResponse!
 }
 
 type Mutation {
   createUser(createUserInput: CreateUserInput!): User!
   login(email: String!, password: String!): LoginResponse!
-  logout: LogoutResponse!
-  restoreUser(id: Int!): User!
-  softDeleteUser(id: Int!): User!
+  refreshToken: RefreshTokenResponse!
+  register(email: String!, name: String!, password: String!): RegisterResponse!
+  removeUser(id: Int!): User!
+  updateUser(id: Int!, updateUserInput: UpdateUserInput!): User!
 }
 
 type Query {
-  me: User!
   user(id: Int!): User!
   users: [User!]!
+}
+
+type RefreshTokenResponse {
+  access_token: String!
+  user: UserResponse!
+}
+
+type RegisterResponse {
+  access_token: String!
+  user: UserResponse!
+}
+
+input UpdateUserInput {
+  email: String
+  id: Int!
+  name: String
+  password: String
 }
 
 type User {
@@ -50,4 +56,10 @@ type User {
   id: Int!
   name: String!
   updatedAt: DateTime!
+}
+
+type UserResponse {
+  email: String!
+  id: Int!
+  name: String!
 }

@@ -1,2 +1,2 @@
 export * from './create-user.input';
-export * from './edit-user-input'; 
+export * from './update-user.input'; 

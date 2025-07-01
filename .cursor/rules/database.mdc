@@ -1,0 +1,361 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 🗄️ Database & Prisma Rules
+
+## Modular Schema System
+
+**Philosophy**: Each core module manages its own database schema
+
+### Schema Organization
+
+```
+src/core/
+├── users/users.prisma         # User models
+├── permissions/permissions.prisma # RBAC models  
+├── audit/audit.prisma         # Audit logging
+└── auth/                      # (uses users schema)
+
+prisma/
+├── base.prisma               # Non-core business models (Post, etc.)
+├── schema.prisma             # Merged from all modules (generated)
+└── migrations/               # Database migrations
+```
+
+### Schema Naming Rules
+
+**Files**: `[module-name].prisma` in core module directories
+```
+✅ src/core/users/users.prisma
+✅ src/core/permissions/permissions.prisma  
+✅ src/core/audit/audit.prisma
+❌ src/core/users/user.prisma (singular)
+❌ src/modules/posts/posts.prisma (feature modules don't have schemas)
+```
+
+**Models**: PascalCase
+```prisma
+✅ model User { }
+✅ model AuditLog { }
+✅ model RolePermission { }
+❌ model user { }
+❌ model auditlog { }
+```
+
+**Fields**: camelCase
+```prisma
+✅ userId: Int
+✅ createdAt: DateTime
+✅ assignedBy: Int
+❌ user_id: Int
+❌ created_at: DateTime
+```
+
+**Tables**: snake_case via @@map
+```prisma
+model User {
+  // ... fields
+  @@map("users")
+}
+
+model AuditLog {
+  // ... fields  
+  @@map("audit_logs")
+}
+```
+
+## Schema Merging Workflow
+
+**CRITICAL**: Always merge schemas before Prisma operations
+
+### Manual Workflow
+```bash
+# 1. Merge modular schemas
+npm run cli db merge
+
+# 2. Then run Prisma commands
+npx prisma generate
+npx prisma migrate dev --name feature-name
+```
+
+### Automated Scripts
+```bash
+# These automatically merge first:
+npm run generate     # merge + generate
+npm run migrate      # merge + migrate dev
+npm run studio       # merge + studio
+```
+
+### CLI Commands
+```bash
+# Database management via CLI
+npm run cli db merge              # ✅ Merge schemas
+npm run cli db generate           # ✅ Generate client  
+npm run cli db migrate my-feature # ✅ Create migration
+npm run cli db status             # ✅ Migration status
+npm run cli db health             # ✅ Health check
+```
+
+## Schema Content Rules
+
+### Required Fields for All Models
+```prisma
+model ExampleModel {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Optional soft delete
+  deletedAt DateTime?
+  
+  @@map("example_models")
+}
+```
+
+### Relationship Patterns
+```prisma
+// One-to-Many
+model User {
+  id    Int    @id @default(autoincrement())
+  posts Post[]
+}
+
+model Post {
+  id       Int  @id @default(autoincrement())
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id])
+}
+
+// Many-to-Many (with junction table)
+model Role {
+  permissions RolePermission[]
+}
+
+model Permission {
+  roles RolePermission[]  
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  
+  @@unique([roleId, permissionId])
+}
+```
+
+### Index Rules
+```prisma
+model AuditLog {
+  userId    Int?
+  action    String
+  resource  String  
+  timestamp DateTime @default(now())
+  
+  // Add indexes for query performance
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+}
+```
+
+## Repository Pattern
+
+### Interface Definition
+```typescript
+// module-name.interface.ts
+export interface UserInterface {
+  findById(id: number): Promise<User | null>;
+  findAll(): Promise<User[]>;
+  create(data: CreateUserInput): Promise<User>;
+  update(id: number, data: UpdateUserInput): Promise<User>;
+  delete(id: number): Promise<void>;
+  softDelete(id: number): Promise<void>;
+}
+```
+
+### Repository Implementation  
+```typescript
+// module-name.repository.ts
+@Injectable()
+export class UserRepository implements UserInterface {
+  constructor(private prisma: PrismaService) {}
+
+  async findById(id: number): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+    });
+  }
+
+  async softDelete(id: number): Promise<void> {
+    await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+}
+```
+
+### Service Integration
+```typescript
+// module-name.service.ts  
+@Injectable()
+export class UserService {
+  constructor(
+    private userRepository: UserRepository // Inject concrete class, not interface
+  ) {}
+
+  async findOne(id: number): Promise<User> {
+    const user = await this.userRepository.findById(id);
+    
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    
+    return user;
+  }
+}
+```
+
+## Migration Rules
+
+### Migration Naming
+```bash
+✅ add-permissions-and-audit-system
+✅ update-user-roles-structure  
+✅ add-post-categories
+❌ migration1
+❌ update
+❌ fix
+```
+
+### Migration Safety
+```bash
+# Safe operations (no data loss)
+✅ Adding new tables
+✅ Adding new columns (nullable)
+✅ Adding indexes
+✅ Adding constraints (if data complies)
+
+# Dangerous operations (review carefully)
+⚠️ Dropping columns
+⚠️ Changing column types
+⚠️ Adding non-nullable columns to existing tables
+⚠️ Dropping tables with data
+```
+
+### Migration Process
+```bash
+# 1. Always merge schemas first
+npm run cli db merge
+
+# 2. Create migration with descriptive name
+npm run cli db migrate add-new-feature
+
+# 3. Review generated migration
+# Check: prisma/migrations/[timestamp]_add-new-feature/
+
+# 4. Test on development database
+npm run cli db status
+
+# 5. Deploy to production
+npm run cli db migrate
+```
+
+## Database Configuration
+
+### Environment Variables
+```env
+# Required
+DATABASE_URL="postgresql://user:pass@localhost:5432/blog"
+
+# Development (SQLite)  
+DATABASE_URL="file:./dev.db"
+
+# Production (PostgreSQL recommended)
+DATABASE_URL="postgresql://user:pass@host:5432/blog_prod"
+```
+
+### Connection Pooling
+```typescript
+// For production, consider connection pooling:
+DATABASE_URL="postgresql://user:pass@host:5432/blog?connection_limit=10&pool_timeout=20"
+```
+
+## Performance Guidelines
+
+### Query Optimization
+```typescript
+// ✅ Use select to limit fields
+const user = await this.prisma.user.findUnique({
+  where: { id },
+  select: { id: true, name: true, email: true }
+});
+
+// ✅ Use include for relations
+const userWithPosts = await this.prisma.user.findUnique({
+  where: { id },
+  include: { posts: true }
+});
+
+// ❌ Avoid N+1 queries - use include instead
+const users = await this.prisma.user.findMany();
+for (const user of users) {
+  user.posts = await this.prisma.post.findMany({ where: { authorId: user.id } });
+}
+```
+
+### Pagination
+```typescript
+// ✅ Always paginate large datasets
+async findAll(page: number = 1, limit: number = 10): Promise<User[]> {
+  return this.prisma.user.findMany({
+    take: limit,
+    skip: (page - 1) * limit,
+    orderBy: { createdAt: 'desc' }
+  });
+}
+```
+
+### Transactions
+```typescript
+// ✅ Use transactions for related operations
+async createUserWithRole(userData: CreateUserInput, roleId: number): Promise<User> {
+  return this.prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({ data: userData });
+    
+    await tx.userRole.create({
+      data: { userId: user.id, roleId }
+    });
+    
+    return user;
+  });
+}
+```
+
+## Backup & Maintenance
+
+### Regular Tasks
+```bash
+# Database health check
+npm run cli db health
+
+# Migration status  
+npm run cli db status
+
+# Clean old audit logs (90 days)
+npm run cli db clean --days 90
+```
+
+### Backup Strategy
+```bash
+# PostgreSQL backup
+pg_dump $DATABASE_URL > backup_$(date +%Y%m%d).sql
+
+# SQLite backup  
+cp prisma/dev.db backup_$(date +%Y%m%d).db
+``` 

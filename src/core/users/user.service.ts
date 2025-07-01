@@ -2,20 +2,24 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { CreateUserInput, UpdateUserInput } from './dto';
-import { UserRepository } from './user.repository';
+import { PrismaService } from '@/common/prisma/prisma.service';
 
 @Injectable()
 export class UserService {
   constructor(
-    private userRepository: UserRepository
+    private prisma: PrismaService
   ) {}
 
   async findAll(): Promise<User[]> {
-    return this.userRepository.findActive();
+    return this.prisma.user.findMany({
+      where: { deletedAt: null }
+    });
   }
 
   async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findById(id);
+    const user = await this.prisma.user.findUnique({
+      where: { id, deletedAt: null }
+    });
     
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
@@ -26,7 +30,9 @@ export class UserService {
 
   async create(createUserInput: CreateUserInput): Promise<User> {
     // Check if user already exists
-    const existingUser = await this.userRepository.existsByEmail(createUserInput.email);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: createUserInput.email }
+    });
     
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
@@ -36,9 +42,11 @@ export class UserService {
     const hashedPassword = await bcrypt.hash(createUserInput.password, 10);
 
     // Create user
-    return this.userRepository.create({
-      ...createUserInput,
-      password: hashedPassword,
+    return this.prisma.user.create({
+      data: {
+        ...createUserInput,
+        password: hashedPassword,
+      }
     });
   }
 
@@ -48,7 +56,9 @@ export class UserService {
 
     // Check if email is already taken by another user
     if (updateUserInput.email) {
-      const existingUser = await this.userRepository.findByEmail(updateUserInput.email);
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: updateUserInput.email }
+      });
       
       if (existingUser && existingUser.id !== id) {
         throw new ConflictException('Email is already taken');
@@ -60,19 +70,27 @@ export class UserService {
       updateUserInput.password = await bcrypt.hash(updateUserInput.password, 10);
     }
 
-    return this.userRepository.update(id, updateUserInput);
+    return this.prisma.user.update({
+      where: { id },
+      data: updateUserInput
+    });
   }
 
   async remove(id: number): Promise<User> {
     const user = await this.findOne(id);
     
     // Soft delete
-    await this.userRepository.softDelete(id);
+    await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
     
     return user;
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findByEmail(email);
+    return this.prisma.user.findUnique({
+      where: { email }
+    });
   }
 } 

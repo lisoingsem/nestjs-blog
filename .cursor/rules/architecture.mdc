@@ -1,0 +1,142 @@
+# 🏗️ Architecture Rules
+
+## Project Structure
+
+This is a **NestJS Blog API** with modular architecture:
+
+```
+src/
+├── core/             # Essential business functionality
+├── modules/          # Domain-specific features  
+├── common/           # Shared utilities
+├── cli/              # Database management commands
+├── config/           # Environment configuration
+└── utils/            # Helper functions
+```
+
+## Module Boundaries
+
+### Core Modules (`src/core/`)
+**Purpose**: Essential business-critical functionality that the entire app depends on
+
+**Current modules**:
+- `auth/` - Authentication & JWT  
+- `users/` - User management
+- `permissions/` - Role-based access control
+- `audit/` - Activity tracking
+
+**Rules**:
+- ✅ Core modules can depend on `common/` utilities
+- ✅ Core modules can depend on other core modules
+- ❌ Core modules CANNOT depend on feature modules
+- ✅ Contains business-critical functionality
+- ✅ If removing it breaks fundamental app functionality → it's core
+
+### Feature Modules (`src/modules/`)
+**Purpose**: Domain-specific business features
+
+**Current modules**:
+- `user/` - User-related features (should move to core)
+
+**Rules**:
+- ✅ Feature modules can depend on `core/` modules
+- ✅ Feature modules can depend on `common/` utilities  
+- ❌ Feature modules CANNOT depend on other feature modules
+- ✅ Contains nice-to-have business features
+- ✅ Removing it doesn't break core functionality
+
+### Common Utilities (`src/common/`)
+**Purpose**: Shared infrastructure and utilities
+
+**Structure**:
+- `prisma/` - Database service & health checks
+- `guards/` - Authentication guards
+- `decorators/` - Custom decorators
+- `services/` - Utility services
+- `modules/` - Module loading system
+
+**Rules**:
+- ✅ No dependencies on core or feature modules
+- ✅ Framework/infrastructure related only
+- ❌ NO business logic allowed
+- ✅ Can be used by any module
+
+## Dynamic Module Loading
+
+**System**: Automatic module discovery and loading
+
+**How it works**:
+```typescript
+// Modules are discovered automatically from:
+// - src/core/*/module-name.module.ts  
+// - src/modules/*/module-name.module.ts
+
+// No manual imports needed in app.module.ts
+```
+
+**Rules**:
+- ✅ Module files MUST follow naming: `*.module.ts`
+- ✅ Modules MUST be in correct directories
+- ✅ Use `@Module()` decorator properly
+- ✅ Export public APIs via `index.ts`
+
+## Dependency Flow
+
+```
+┌─────────────┐    ┌─────────────┐
+│   Feature   │◄───┤    Core     │
+│   Modules   │    │   Modules   │
+└─────────────┘    └─────────────┘
+       │                  │
+       ▼                  ▼
+┌─────────────────────────────────┐
+│         Common Utilities         │
+└─────────────────────────────────┘
+```
+
+**Rules**:
+- ✅ Dependencies flow downward only
+- ✅ Core modules can reference each other
+- ❌ No circular dependencies allowed
+- ✅ Use dependency injection for all services
+
+## Module Structure Standards
+
+Each module MUST have:
+```
+module-name/
+├── *.interface.ts    # Data contracts
+├── *.repository.ts   # Data access layer
+├── *.service.ts      # Business logic
+├── *.module.ts       # NestJS module
+├── dto/              # Input/output types
+├── index.ts          # Public API exports
+└── *.prisma          # Schema (core modules only)
+```
+
+Optional files:
+- `*.resolver.ts` - GraphQL resolvers
+- `*.controller.ts` - REST controllers  
+- `*.guard.ts` - Custom guards
+- `entities/` - Domain entities
+
+## Path Aliases
+
+**Configuration**: Defined in `tsconfig.json`
+
+```typescript
+// Use these imports:
+import { UserService } from '@core/users';
+import { PrismaService } from '@common/prisma';
+import { jwtConfig } from '@config/jwt.config';
+
+// NOT relative paths in most cases:
+import { UserService } from '../../core/users/user.service';
+```
+
+**Rules**:
+- ✅ Use path aliases for cross-module imports
+- ✅ CLI uses relative paths (TypeScript limitation)
+- ✅ Keep aliases consistent with folder structure
+- ❌ Don't mix alias and relative imports in same file
+``` 

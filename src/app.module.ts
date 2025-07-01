@@ -7,11 +7,15 @@ import { join } from 'path';
 import { PrismaModule } from '@common/prisma';
 import { ModuleLoaderService } from '@common/modules';
 import { SecurityService } from '@common/services/security.service';
+import { ProfileModule } from './modules/profile/profile.module';
+import { ContactModule } from './modules/contact/contact.module';
 import databaseConfig from '@config/database.config';
 import jwtConfig from '@config/jwt.config';
 import securityConfig from '@config/security.config';
 
-@Module({})
+@Module({
+  imports: [ProfileModule, ContactModule]
+})
 export class AppModule {
   static async forRoot(): Promise<DynamicModule> {
     const moduleLoader = new ModuleLoaderService();

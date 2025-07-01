@@ -11,12 +11,12 @@
     "outDir": "./dist",
     "baseUrl": "./src",
     "paths": {
-      "@core/*": ["core/*"],
-      "@modules/*": ["modules/*"],
-      "@prisma/*": ["prisma/*"],
-      "@common/*": ["common/*"],
-      "@cron/*": ["cron/*"],
-      "@config/*": ["config/*"]
+      "@/core/*": ["core/*"],
+      "@/modules/*": ["modules/*"],
+      "@/prisma/*": ["prisma/*"],
+      "@/common/*": ["common/*"],
+      "@/cron/*": ["cron/*"],
+      "@/config/*": ["config/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

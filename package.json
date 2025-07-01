@@ -11,13 +11,11 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node -r tsconfig-paths/register dist/src/main",
-    "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
-    "db:seed": "ts-node --transpile-only prisma/seed.ts",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
-    "db:studio": "prisma studio",
-    "cli": "node scripts/cli.js"
+          "start:prod": "node -r tsconfig-paths/register dist/src/main",
+      "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
+      "db": "ts-node src/cli.ts db",
+      
+      "cli": "ts-node src/cli.ts"
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",
@@ -36,6 +34,7 @@
     "graphql": "^16.11.0",
     "graphql-tag": "^2.12.6",
     "helmet": "^8.1.0",
+    "nest-commander": "^3.17.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",

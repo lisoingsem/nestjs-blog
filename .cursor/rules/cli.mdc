@@ -3,466 +3,95 @@ description:
 globs: 
 alwaysApply: false
 ---
-# 🖥️ CLI Rules
+# 🔧 CLI & Database Management Rules
 
 ## CLI System Overview
 
-**Framework**: nest-commander for NestJS-integrated CLI commands
-**Purpose**: Database management and administrative tasks
+**Framework**: nest-commander based CLI system
+**Purpose**: Database management and utility commands
+**Entry Point**: `src/cli.ts`
 
-## Command Structure
+## Database Commands
 
-### Entry Point
+### Command Structure
 ```bash
-# CLI entry point
-npm run cli [command] [subcommand] [options]
+# Main command
+npm run cli db [command] [options]
 
-# Examples:
-npm run cli db merge
-npm run cli db migrate my-feature 
-npm run cli --help
+# Examples
+npm run cli db                    # Generate Prisma client
+npm run cli db generate           # Generate client only
+npm run cli db migrate my-feature # Create migration
+npm run cli db studio             # Open Prisma Studio
 ```
 
 ### Available Commands
 
-#### Database Commands (`db`)
+#### Generate Client
 ```bash
-npm run cli db merge              # Merge modular schemas
-npm run cli db generate           # Generate Prisma client
-npm run cli db migrate [name]     # Create/apply migrations
-npm run cli db status             # Show database status
-npm run cli db health             # Health check
-```
-
-#### Help Commands
-```bash
-npm run cli --help               # Show all commands
-npm run cli db                   # Show database command help
-```
-
-## Command Implementation Rules
-
-### File Structure
-```
-src/cli/
-├── cli.module.ts              # CLI module definition
-├── cli.ts                     # Entry point
-└── commands/
-    └── database.command.ts    # Database commands
-```
-
-### Command Class Pattern
-```typescript
-@Command({ 
-  name: 'command-name', 
-  description: 'Clear description of what this command does'
-})
-export class SomeCommand extends CommandRunner {
-  private readonly logger = new Logger(SomeCommand.name);
-
-  constructor() {
-    super();
-  }
-
-  async run(passedParams: string[]): Promise<void> {
-    // Command implementation
-  }
-}
-```
-
-### Error Handling Pattern
-```typescript
-private async someOperation(): Promise<void> {
-  try {
-    this.logger.log('🔄 Starting operation...');
-    
-    // Perform operation
-    execSync('some-command', { stdio: 'inherit' });
-    
-    this.logger.log('✅ Operation completed successfully!');
-  } catch (error) {
-    this.logger.error('❌ Operation failed');
-    process.exit(1); // Always exit with error code
-  }
-}
-```
-
-### Logging Standards
-```typescript
-// Use emojis for visual clarity
-this.logger.log('🔄 Processing...');    // In progress
-this.logger.log('✅ Success!');          // Success
-this.logger.error('❌ Failed');          // Error
-this.logger.warn('⚠️ Warning');          // Warning
-this.logger.log('📊 Status info');       // Information
-this.logger.log('🏥 Health check');      // Health/diagnostic
-this.logger.log('🧹 Cleaning...');       // Maintenance
-```
-
-## Database Command Rules
-
-### Schema Operations (No Database Required)
-```typescript
-// These commands work without DATABASE_URL
-async merge(): Promise<void> {
-  // Merge modular schemas using execSync
-  execSync('node scripts/merge-schema.js', { stdio: 'inherit' });
-}
-
-async generate(): Promise<void> {
-  // Always merge first, then generate
-  execSync('node scripts/merge-schema.js', { stdio: 'pipe' });
-  execSync('npx prisma generate', { stdio: 'inherit' });
-}
-```
-
-### Database Operations (Require DATABASE_URL)
-```typescript
-async migrate(name?: string): Promise<void> {
-  try {
-    // Always merge schemas first
-    execSync('node scripts/merge-schema.js', { stdio: 'pipe' });
-    
-    if (name) {
-      // Create new migration
-      execSync(`npx prisma migrate dev --name ${name}`, { stdio: 'inherit' });
-    } else {
-      // Apply pending migrations
-      execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-    }
-  } catch (error) {
-    this.logger.error('❌ Migration failed (DATABASE_URL required)');
-    process.exit(1);
-  }
-}
-```
-
-### Parameter Handling
-```typescript
-async run(passedParams: string[]): Promise<void> {
-  const command = passedParams[0];
-  const param = passedParams[1];
-  
-  switch (command) {
-    case 'merge':
-      await this.merge();
-      break;
-    case 'migrate':
-      await this.migrate(param); // Pass parameter
-      break;
-    default:
-      this.showHelp();
-  }
-}
-```
-
-## Help System Rules
-
-### Help Display Pattern
-```typescript
-private showHelp(): void {
-  this.logger.log('\n🗄️  Database CLI Commands\n');
-  this.logger.log('Available commands:');
-  this.logger.log('  merge       - Merge modular schema files');
-  this.logger.log('  generate    - Generate Prisma client');
-  this.logger.log('  migrate     - Apply migrations (requires DATABASE_URL)');
-  this.logger.log('  status      - Show database status (requires DATABASE_URL)');
-  this.logger.log('  health      - Run health check (requires DATABASE_URL)');
-  this.logger.log('\nExamples:');
-  this.logger.log('  npm run cli db merge');
-  this.logger.log('  npm run cli db generate');
-  this.logger.log('  npm run cli db migrate my-feature-name');
-}
-```
-
-### Requirement Indicators
-```typescript
-// Clearly indicate which commands need database
-this.logger.log('  merge       - Merge modular schema files');                    // No DB
-this.logger.log('  generate    - Generate Prisma client');                        // No DB  
-this.logger.log('  migrate     - Apply migrations (requires DATABASE_URL)');      // Needs DB
-this.logger.log('  status      - Show database status (requires DATABASE_URL)'); // Needs DB
-```
-
-## Module Configuration Rules
-
-### CLI Module Setup
-```typescript
-@Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    // Don't import PrismaModule to avoid database connection requirement
-  ],
-  providers: [
-    DatabaseCommand,
-  ],
-})
-export class CliModule {}
-```
-
-### Entry Point Configuration
-```typescript
-// src/cli.ts
-import { CommandFactory } from 'nest-commander';
-import { CliModule } from './cli/cli.module';
-
-async function bootstrap() {
-  await CommandFactory.run(CliModule, {
-    logger: ['log', 'warn', 'error'],
-    errorHandler: (error) => {
-      console.error('❌ CLI Error:', error.message);
-      process.exit(1);
-    },
-  });
-}
-```
-
-## Command Development Guidelines
-
-### Adding New Commands
-
-1. **Create command class**:
-```typescript
-@Command({ 
-  name: 'new-command', 
-  description: 'Description of new command'
-})
-export class NewCommand extends CommandRunner {
-  // Implementation
-}
-```
-
-2. **Add to CLI module**:
-```typescript
-@Module({
-  providers: [
-    DatabaseCommand,
-    NewCommand, // Add here
-  ],
-})
-export class CliModule {}
-```
-
-3. **Follow patterns**:
-   - Use proper logging with emojis
-   - Handle errors gracefully
-   - Show helpful error messages
-   - Exit with proper codes
-
-### Command Categories
-
-**Schema Management** (No database required):
-- Schema merging
-- Client generation
-- Schema validation
-
-**Database Operations** (Database required):
-- Migrations
-- Health checks
-- Status queries
-- Data maintenance
-
-**Administrative** (Context dependent):
-- User management
-- Permission setup
-- Audit log cleanup
-
-## Testing CLI Commands
-
-### Manual Testing
-```bash
-# Test without database
-npm run cli db merge
 npm run cli db generate
-
-# Test help system
-npm run cli --help
-npm run cli db
-
-# Test with database (requires DATABASE_URL)
-export DATABASE_URL="file:./test.db"
-npm run cli db status
-npm run cli db health
 ```
+- Generates Prisma client from schema
+- No database connection required
+- Updates TypeScript types
 
-### Error Scenarios
+#### Migrations
 ```bash
-# Test missing parameters
-npm run cli db migrate  # Should show help or error
+# Create new migration
+npm run cli db migrate add-feature-name
 
-# Test invalid commands  
-npm run cli db invalid  # Should show help
+# Apply migrations
+npm run cli db migrate
+```
+- Creates or applies database migrations
+- Requires DATABASE_URL
+- Uses standard Prisma migration commands
 
-# Test database commands without URL
-unset DATABASE_URL
-npm run cli db status   # Should show helpful error
+#### Database Tools
+```bash
+npm run cli db studio    # Open Prisma Studio
+npm run cli db status    # Show migration status
+npm run cli db health    # Database health check
+npm run cli db seed      # Seed database
 ```
 
-## Environment Handling
+## Command Implementation
 
-### Environment Variables
-```typescript
-// Commands should handle missing environment gracefully
-if (!process.env.DATABASE_URL) {
-  this.logger.error('❌ DATABASE_URL required for this operation');
-  this.logger.log('Set DATABASE_URL environment variable and try again');
-  process.exit(1);
-}
-```
-
-### Cross-Platform Compatibility
-```typescript
-// Use execSync with proper options
-execSync('npx prisma generate', { 
-  stdio: 'inherit',      // Show output
-  cwd: process.cwd(),    // Ensure correct working directory
-  env: process.env       // Pass environment variables
-});
-```
-
-## Performance Considerations
-
-### Output Management
-```typescript
-// For silent operations (like in other commands)
-execSync('node scripts/merge-schema.js', { stdio: 'pipe' });
-
-// For interactive operations (user should see output)
-execSync('npx prisma migrate dev --name feature', { stdio: 'inherit' });
-```
-
-### Command Chaining
-```typescript
-// Always merge schemas before Prisma operations
-async migrate(name?: string): Promise<void> {
-  // Silent merge first
-  execSync('node scripts/merge-schema.js', { stdio: 'pipe' });
-  
-  // Then the main operation with output
-  if (name) {
-    execSync(`npx prisma migrate dev --name ${name}`, { stdio: 'inherit' });
-  }
-}
-```
-
-# 🔧 CLI & Command Rules
-
-## CLI Architecture
-
-**System**: nest-commander based database management CLI
-
-### CLI Structure
-```
-src/cli/
-├── cli.module.ts           # CLI module configuration
-├── cli.ts                  # Main CLI entry point
-└── commands/
-    └── database.command.ts # Database management commands
-```
-
-### Entry Point
-```typescript
-// src/cli.ts
-import { CommandFactory } from 'nest-commander';
-import { CliModule } from './cli/cli.module';
-
-async function bootstrap() {
-  await CommandFactory.run(CliModule, {
-    logger: ['log', 'warn', 'error'],
-    errorHandler: (error) => {
-      console.error('❌ CLI Error:', error.message);
-      process.exit(1);
-    },
-  });
-}
-```
-
-## Command Patterns
-
-### Command Structure
+### Database Command Class
 ```typescript
 @Command({ 
-  name: 'command-name', 
-  description: 'Clear description' 
+  name: 'db', 
+  description: 'Database management commands'
 })
-export class SomeCommand extends CommandRunner {
-  private readonly logger = new Logger(SomeCommand.name);
-  
-  constructor() {
-    super();
-  }
-
-  async run(passedParams: string[]): Promise<void> {
-    const command = passedParams[0];
-    
-    switch (command) {
-      case 'action':
-        await this.handleAction();
-        break;
-      default:
-        this.showHelp();
-    }
-  }
-}
-```
-
-### Error Handling Pattern
-```typescript
-private async handleAction(): Promise<void> {
-  try {
-    this.logger.log('🔄 Starting operation...');
-    // Implementation
-    this.logger.log('✅ Operation completed successfully!');
-  } catch (error) {
-    this.logger.error('❌ Operation failed');
-    process.exit(1);
-  }
-}
-```
-
-### Logging Standards
-```typescript
-// Use emoji prefixes for visual clarity
-this.logger.log('🔄 Processing...');    // In progress
-this.logger.log('✅ Success message');   // Success
-this.logger.log('⚠️ Warning message');   // Warning  
-this.logger.error('❌ Error message');   // Error
-this.logger.log('📊 Status info');       // Information
-this.logger.log('🏥 Health check');      // Health/diagnostics
-this.logger.log('🧹 Cleanup');           // Maintenance
-```
-
-## Database Commands
-
-### Current Commands
-```bash
-npm run cli db merge              # Merge modular schemas
-npm run cli db generate           # Generate Prisma client  
-npm run cli db migrate [name]     # Create/apply migrations
-npm run cli db status             # Migration status
-npm run cli db health             # Database health check
-```
-
-### Command Implementation
-```typescript
-@Command({ name: 'db', description: 'Database management commands' })
 export class DatabaseCommand extends CommandRunner {
-  
   async run(passedParams: string[]): Promise<void> {
     const command = passedParams[0];
     
+    // Default: generate client
+    if (!command || command === 'sync') {
+      await this.sync();
+      return;
+    }
+    
     switch (command) {
-      case 'merge':
-        await this.merge();
-        break;
-      case 'generate':  
+      case 'generate':
         await this.generate();
         break;
       case 'migrate':
         await this.migrate(passedParams[1]);
         break;
+      case 'studio':
+        await this.studio();
+        break;
+      case 'status':
+        await this.status();
+        break;
+      case 'health':
+        await this.health();
+        break;
+      case 'seed':
+        await this.seed();
+        break;
       default:
         this.showHelp();
     }
@@ -470,53 +99,50 @@ export class DatabaseCommand extends CommandRunner {
 }
 ```
 
-### Schema Merging Command
+### Command Methods
 ```typescript
-private async merge(): Promise<void> {
+private async generate(): Promise<void> {
   try {
-    this.logger.log('🔄 Merging schema files...');
-    execSync('node scripts/merge-schema.js', { stdio: 'inherit' });
-    this.logger.log('✅ Schema files merged successfully!');
+    console.log('🔄 Generating Prisma client...');
+    execSync('npx prisma generate', { stdio: 'inherit' });
+    console.log('✅ Prisma client generated successfully!');
   } catch (error) {
-    this.logger.error('❌ Failed to merge schema files');
+    console.error('❌ Failed to generate client:', error.message);
     process.exit(1);
   }
 }
-```
 
-### Migration Command
-```typescript
 private async migrate(name?: string): Promise<void> {
   try {
     if (name) {
-      this.logger.log(`🔄 Creating migration: ${name}`);
-      execSync('node scripts/merge-schema.js', { stdio: 'pipe' });
+      console.log(`🔄 Creating migration: ${name}`);
       execSync(`npx prisma migrate dev --name ${name}`, { stdio: 'inherit' });
     } else {
-      this.logger.log('🔄 Applying migrations...');
-      execSync('node scripts/merge-schema.js', { stdio: 'pipe' });
+      console.log('🔄 Applying migrations...');
       execSync('npx prisma migrate deploy', { stdio: 'inherit' });
     }
-    this.logger.log('✅ Migration completed successfully!');
+    console.log('✅ Migration completed successfully!');
   } catch (error) {
-    this.logger.error('❌ Migration failed');
+    console.error('❌ Migration failed:', error.message);
     process.exit(1);
   }
 }
 ```
 
-## Command Rules
+## Environment Handling
 
-### Environment Handling
-```typescript
-// Commands that don't require database
-✅ merge      - Schema merging (file operations only)
+### Commands that don't require database
+```bash
 ✅ generate   - Client generation (file operations only)
+✅ studio     - Opens web interface (file operations only)
+```
 
-// Commands that require DATABASE_URL
+### Commands that require DATABASE_URL
+```bash
 ⚠️ migrate    - Database operations
 ⚠️ status     - Migration status check
 ⚠️ health     - Database connectivity check
+⚠️ seed       - Database seeding
 ```
 
 ### Parameter Validation
@@ -534,129 +160,199 @@ private async migrate(name?: string): Promise<void> {
 }
 ```
 
-### Help System
+## Help System
+
+### Command Help
 ```typescript
 private showHelp(): void {
-  this.logger.log('\n🗄️  Database CLI Commands\n');
-  this.logger.log('Available commands:');
-  this.logger.log('  merge       - Merge modular schema files');
-  this.logger.log('  generate    - Generate Prisma client');
-  this.logger.log('  migrate     - Apply migrations (requires DATABASE_URL)');
-  this.logger.log('  status      - Show database status (requires DATABASE_URL)');
-  this.logger.log('  health      - Run health check (requires DATABASE_URL)');
-  this.logger.log('\nExamples:');
-  this.logger.log('  npm run cli db merge');
-  this.logger.log('  npm run cli db generate');
-  this.logger.log('  npm run cli db migrate my-feature-name');
+  console.log('\n🚀 Database Commands');
+  console.log('\nUsage:');
+  console.log('  cli db                    # Default: generate Prisma client');
+  console.log('  cli db [command]          # Specific command');
+  
+  console.log('\n⚡ Quick Commands:');
+  console.log('  cli db                    Generate Prisma client');
+  
+  console.log('\n🔧 Specific Commands:');
+  console.log('  generate                  Generate Prisma client only');
+  console.log('  migrate [name]            Create/apply migrations');
+  console.log('  seed                      Seed database with sample data');
+  console.log('  studio                    Open Prisma Studio');
+  console.log('  status                    Show migration status');
+  console.log('  health                    Database health check');
+  
+  process.exit(0);
 }
 ```
 
-## Adding New Commands
+## Error Handling
 
-### New Command Structure
+### Standard Error Pattern
 ```typescript
-// 1. Create command class
-@Command({ 
-  name: 'new-command', 
-  description: 'Description of new command' 
-})
-export class NewCommand extends CommandRunner {
-  private readonly logger = new Logger(NewCommand.name);
-  
-  async run(passedParams: string[]): Promise<void> {
-    // Implementation
+try {
+  // Command execution
+  execSync('npx prisma generate', { stdio: 'inherit' });
+  console.log('✅ Operation completed successfully!');
+} catch (error) {
+  console.error('❌ Operation failed:', error.message);
+  process.exit(1);
+}
+```
+
+### Environment Validation
+```typescript
+private validateDatabaseUrl(): void {
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ DATABASE_URL environment variable is required');
+    process.exit(1);
   }
 }
-
-// 2. Add to CLI module
-@Module({
-  providers: [
-    DatabaseCommand,
-    NewCommand,  // Add here
-  ],
-})
-export class CliModule {}
-
-// 3. Update package.json if needed
-"scripts": {
-  "new-cmd": "ts-node src/cli.ts new-command"
-}
 ```
 
-### Command Categories
+## Testing CLI Commands
+
+### Unit Testing
 ```typescript
-// Database operations
-npm run cli db [action]
-
-// Future command categories
-npm run dev:cli dev [action]        # Development utilities
-npm run cache:cli cache [action]    # Cache management  
-npm run security:cli security [action] # Security operations
-```
-
-## Development Workflow
-
-### CLI Development Rules
-```typescript
-// 1. Use dependency injection where possible
-constructor(
-  private configService: ConfigService,
-  private prismaService?: PrismaService  // Optional for non-DB commands
-) {}
-
-// 2. Handle both success and failure cases
-try {
-  // Operation
-  this.logger.log('✅ Success');
-} catch (error) {
-  this.logger.error('❌ Failed');
-  process.exit(1);  // Exit with error code
-}
-
-// 3. Provide clear feedback
-this.logger.log('🔄 Starting...');   // Start
-this.logger.log('📊 Status info');   // Progress  
-this.logger.log('✅ Complete');      // Finish
-```
-
-### Testing CLI Commands
-```typescript
-// Test individual command methods
 describe('DatabaseCommand', () => {
   let command: DatabaseCommand;
-  
+
   beforeEach(() => {
     command = new DatabaseCommand();
   });
-  
-  it('should merge schemas successfully', async () => {
-    // Mock execSync
-    jest.spyOn(require('child_process'), 'execSync').mockImplementation();
+
+  it('should generate client successfully', async () => {
+    jest.spyOn(execSync, 'execSync').mockImplementation(() => Buffer.from(''));
     
-    await command.merge();
+    await command.generate();
     
-    expect(execSync).toHaveBeenCalledWith('node scripts/merge-schema.js', { stdio: 'inherit' });
+    expect(execSync).toHaveBeenCalledWith('npx prisma generate', { stdio: 'inherit' });
+  });
+
+  it('should show help for unknown command', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation();
+    
+    await command.run(['unknown']);
+    
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Database Commands'));
+    expect(exitSpy).toHaveBeenCalledWith(0);
   });
 });
 ```
 
 ## Package.json Scripts
 
-### Current Scripts
+### Recommended Scripts
 ```json
 {
   "scripts": {
-    "cli": "ts-node src/cli.ts",
-    "merge": "node scripts/merge-schema.js",
-    "migrate": "npm run merge && prisma migrate dev",
-    "generate": "npm run merge && prisma generate",
-    "studio": "npm run merge && prisma studio"
+    "cli": "nest-commander",
+    "db": "npm run cli db",
+    "db:generate": "npm run cli db generate",
+    "db:migrate": "npm run cli db migrate",
+    "db:studio": "npm run cli db studio",
+    "db:status": "npm run cli db status",
+    "db:health": "npm run cli db health",
+    "db:seed": "npm run cli db seed"
   }
 }
 ```
 
-### Script Rules
-- ✅ CLI scripts use `ts-node src/cli.ts` entry point
-- ✅ Database scripts auto-merge schemas before operations
-- ✅ Use descriptive script names
-- ❌ Don't duplicate functionality between scripts and CLI 
+## Best Practices
+
+### Command Naming
+```bash
+✅ add-user-authentication
+✅ update-post-schema
+✅ fix-email-validation
+❌ migration1
+❌ update
+❌ fix
+```
+
+### Error Messages
+```typescript
+// ✅ Clear, actionable error messages
+console.error('❌ DATABASE_URL environment variable is required');
+console.error('❌ Migration name must be 50 characters or less');
+
+// ❌ Vague error messages
+console.error('❌ Something went wrong');
+console.error('❌ Error occurred');
+```
+
+### Logging Standards
+```typescript
+// ✅ Consistent emoji usage
+console.log('🔄 Generating Prisma client...');
+console.log('✅ Prisma client generated successfully!');
+console.log('❌ Failed to generate client');
+
+// ✅ Include context
+console.log(`🔄 Creating migration: ${name}`);
+console.log(`📊 Migration status for: ${databaseUrl}`);
+```
+
+### Command Structure
+```typescript
+// ✅ Consistent command structure
+async run(passedParams: string[]): Promise<void> {
+  const command = passedParams[0];
+  
+  if (!command) {
+    await this.defaultAction();
+    return;
+  }
+  
+  switch (command) {
+    case 'action1':
+      await this.action1(passedParams.slice(1));
+      break;
+    case 'action2':
+      await this.action2(passedParams.slice(1));
+      break;
+    default:
+      this.showHelp();
+  }
+}
+```
+
+## Integration with NestJS
+
+### Module Setup
+```typescript
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+  ],
+  providers: [
+    DatabaseCommand,
+  ],
+})
+export class CliModule {}
+```
+
+### Bootstrap
+```typescript
+#!/usr/bin/env node
+
+import { CommandFactory } from 'nest-commander';
+import { CliModule } from './cli/cli.module';
+
+async function bootstrap() {
+  await CommandFactory.run(CliModule, {
+    logger: false,
+    errorHandler: (error) => {
+      if (error.message.includes('help')) {
+        process.exit(0);
+      }
+      console.error('CLI Error:', error.message);
+      process.exit(1);
+    },
+  });
+}
+
+bootstrap();
+``` 

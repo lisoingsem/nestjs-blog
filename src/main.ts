@@ -4,7 +4,7 @@ import * as passport from 'passport';
 import helmet from 'helmet';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule.forRoot());
+  const app = await NestFactory.create(AppModule);
 
   app.use(passport.initialize());
   app.use(

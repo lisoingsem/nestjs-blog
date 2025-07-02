@@ -1,142 +1,403 @@
-# 🏗️ Architecture Rules
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# NestJS Blog Architecture Rules
 
-## Project Structure
+## 🏗️ Project Overview
 
-This is a **NestJS Blog API** with modular architecture:
+This is a **NestJS Blog API** with modular architecture featuring:
+- **GraphQL API** with code-first approach
+- **JWT Authentication** with role-based access control
+- **Prisma ORM** with PostgreSQL database
+- **Modular structure** with clear separation of concerns
+- **CLI system** with nest-commander for database management
+- **Security-first** approach with comprehensive guards and validation
+
+## 📁 Project Structure
 
 ```
 src/
-├── core/             # Essential business functionality
-├── modules/          # Domain-specific features  
-├── common/           # Shared utilities
-├── cli/              # Database management commands
-├── config/           # Environment configuration
-└── utils/            # Helper functions
+├── app.module.ts              # Main application module
+├── main.ts                    # Application bootstrap
+├── cli.ts                     # CLI entry point
+├── config/                    # Configuration modules
+│   ├── database.config.ts     # Database configuration
+│   ├── jwt.config.ts          # JWT configuration
+│   ├── security.config.ts     # Security configuration
+│   └── index.ts               # Configuration exports
+├── modules/                   # Feature modules
+│   ├── auth/                  # Authentication module
+│   ├── users/                 # User management
+│   ├── permissions/           # Role-based access control
+│   ├── audit/                 # Audit logging
+│   ├── contact/               # Contact functionality
+│   └── profile/               # Profile management
+├── shared/                    # Shared infrastructure
+│   ├── services/              # Shared services
+│   ├── guards/                # Authentication guards
+│   ├── decorators/            # Custom decorators
+│   ├── prisma/                # Database service
+│   ├── exceptions/            # Custom exceptions
+│   ├── filters/               # Exception filters
+│   ├── interceptors/          # Request/response interceptors
+│   ├── middleware/            # Custom middleware
+│   ├── pipes/                 # Validation pipes
+│   ├── utils/                 # Utility functions
+│   └── interfaces/            # TypeScript interfaces
+├── cli/                       # CLI commands
+│   ├── commands/              # Command implementations
+│   └── cli.module.ts          # CLI module
+├── database/                  # Database utilities
+├── graphql/                   # GraphQL utilities
+└── utils/                     # Application utilities
 ```
 
-## Module Boundaries
+## 🎯 Architecture Principles
 
-### Core Modules (`src/core/`)
-**Purpose**: Essential business-critical functionality that the entire app depends on
+### 1. **Modular Design**
+- Each feature is a separate module
+- Clear boundaries between modules
+- Shared code in `shared/` directory
+- No circular dependencies
 
-**Current modules**:
-- `auth/` - Authentication & JWT  
-- `users/` - User management
-- `permissions/` - Role-based access control
-- `audit/` - Activity tracking
+### 2. **GraphQL Code-First**
+- No `.graphql` schema files
+- Schema auto-generated from TypeScript decorators
+- Type safety with full TypeScript support
+- Single source of truth for types
 
-**Rules**:
-- ✅ Core modules can depend on `common/` utilities
-- ✅ Core modules can depend on other core modules
-- ❌ Core modules CANNOT depend on feature modules
-- ✅ Contains business-critical functionality
-- ✅ If removing it breaks fundamental app functionality → it's core
+### 3. **Security-First**
+- JWT authentication on all protected routes
+- Role-based access control (RBAC)
+- Input validation and sanitization
+- Audit logging for all operations
 
-### Feature Modules (`src/modules/`)
-**Purpose**: Domain-specific business features
+### 4. **Database-First**
+- Prisma ORM with PostgreSQL
+- Single schema file with modular imports
+- Soft deletes for data integrity
+- Proper indexing and relationships
 
-**Current modules**:
-- `user/` - User-related features (should move to core)
+### 5. **Configuration-Driven**
+- Environment-based configuration
+- Centralized config management
+- Type-safe configuration access
+- Secure defaults with environment overrides
 
-**Rules**:
-- ✅ Feature modules can depend on `core/` modules
-- ✅ Feature modules can depend on `common/` utilities  
-- ❌ Feature modules CANNOT depend on other feature modules
-- ✅ Contains nice-to-have business features
-- ✅ Removing it doesn't break core functionality
+## 🔧 Module Structure
 
-### Common Utilities (`src/common/`)
-**Purpose**: Shared infrastructure and utilities
-
-**Structure**:
-- `prisma/` - Database service & health checks
-- `guards/` - Authentication guards
-- `decorators/` - Custom decorators
-- `services/` - Utility services
-- `modules/` - Module loading system
-
-**Rules**:
-- ✅ No dependencies on core or feature modules
-- ✅ Framework/infrastructure related only
-- ❌ NO business logic allowed
-- ✅ Can be used by any module
-
-## Dynamic Module Loading
-
-**System**: Automatic module discovery and loading
-
-**How it works**:
-```typescript
-// Modules are discovered automatically from:
-// - src/core/*/module-name.module.ts  
-// - src/modules/*/module-name.module.ts
-
-// No manual imports needed in app.module.ts
-```
-
-**Rules**:
-- ✅ Module files MUST follow naming: `*.module.ts`
-- ✅ Modules MUST be in correct directories
-- ✅ Use `@Module()` decorator properly
-- ✅ Export public APIs via `index.ts`
-
-## Dependency Flow
-
-```
-┌─────────────┐    ┌─────────────┐
-│   Feature   │◄───┤    Core     │
-│   Modules   │    │   Modules   │
-└─────────────┘    └─────────────┘
-       │                  │
-       ▼                  ▼
-┌─────────────────────────────────┐
-│         Common Utilities         │
-└─────────────────────────────────┘
-```
-
-**Rules**:
-- ✅ Dependencies flow downward only
-- ✅ Core modules can reference each other
-- ❌ No circular dependencies allowed
-- ✅ Use dependency injection for all services
-
-## Module Structure Standards
-
-Each module MUST have:
+### Standard Module Layout
 ```
 module-name/
-├── *.interface.ts    # Data contracts
-├── *.repository.ts   # Data access layer
-├── *.service.ts      # Business logic
-├── *.module.ts       # NestJS module
-├── dto/              # Input/output types
-├── index.ts          # Public API exports
-└── *.prisma          # Schema (core modules only)
+├── entities/                  # GraphQL Object Types
+│   ├── module.entity.ts      # Main entity types
+│   └── index.ts             # Export all entities
+├── types/                    # GraphQL Input Types
+│   ├── module.types.ts      # Input types for mutations
+│   └── index.ts             # Export all types
+├── dto/                      # Data Transfer Objects
+│   ├── create-module.input.ts # Create DTOs
+│   ├── update-module.input.ts # Update DTOs
+│   └── index.ts             # Export all DTOs
+├── module.resolver.ts        # GraphQL resolvers
+├── module.service.ts         # Business logic
+├── module.module.ts          # NestJS module
+├── module.prisma             # Database schema (if needed)
+└── index.ts                  # Public exports
 ```
 
-Optional files:
-- `*.resolver.ts` - GraphQL resolvers
-- `*.controller.ts` - REST controllers  
-- `*.guard.ts` - Custom guards
-- `entities/` - Domain entities
-
-## Path Aliases
-
-**Configuration**: Defined in `tsconfig.json`
-
+### Module Dependencies
 ```typescript
-// Use these imports:
-import { UserService } from '@core/users';
-import { PrismaService } from '@common/prisma';
-import { jwtConfig } from '@config/jwt.config';
+// Standard module imports
+import { Module } from '@nestjs/common';
+import { PrismaModule } from 'shared/prisma';
+import { ModuleResolver } from './module.resolver';
+import { ModuleService } from './module.service';
+import './entities'; // Import GraphQL entities
+import './types';    // Import GraphQL types
 
-// NOT relative paths in most cases:
-import { UserService } from '../../core/users/user.service';
+@Module({
+  imports: [PrismaModule],
+  providers: [ModuleResolver, ModuleService],
+  exports: [ModuleService],
+})
+export class ModuleModule {}
 ```
 
-**Rules**:
-- ✅ Use path aliases for cross-module imports
-- ✅ CLI uses relative paths (TypeScript limitation)
-- ✅ Keep aliases consistent with folder structure
-- ❌ Don't mix alias and relative imports in same file
-``` 
+## 🛡️ Security Architecture
+
+### Authentication Flow
+1. **JWT Strategy** - Validates JWT tokens
+2. **JWT Guard** - Protects routes and resolvers
+3. **Permission Guard** - Checks user permissions
+4. **Audit Service** - Logs all operations
+
+### Authorization Patterns
+```typescript
+// Route-level protection
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequirePermissions('user:read')
+async getUsers() {}
+
+// Resource-level protection
+@UseGuards(JwtAuthGuard)
+async updateUser(@CurrentUser() user: User, @Args('id') id: number) {
+  this.securityService.validateResourceAccess(user, id);
+  return this.userService.update(id, input);
+}
+```
+
+### Security Service Patterns
+```typescript
+// Validate authentication
+this.securityService.validateAuthentication(user);
+
+// Check resource access
+this.securityService.validateResourceAccess(user, resourceId);
+
+// Get current user ID safely
+const userId = this.securityService.getUserId(user);
+```
+
+## 🔄 Data Flow
+
+### Request Flow
+1. **Request** → GraphQL resolver
+2. **Authentication** → JWT guard validates token
+3. **Authorization** → Permission guard checks permissions
+4. **Validation** → Input validation and sanitization
+5. **Business Logic** → Service layer processing
+6. **Database** → Prisma service data access
+7. **Audit** → Log operation details
+8. **Response** → Return data to client
+
+### Error Handling
+```typescript
+// Service-level error handling
+async findById(id: number): Promise<User> {
+  const user = await this.prisma.user.findUnique({ where: { id } });
+  if (!user) {
+    throw new NotFoundException(`User with ID ${id} not found`);
+  }
+  return user;
+}
+
+// Resolver-level error handling
+@Mutation(() => UserResponse)
+async createUser(@Args('input') input: CreateUserInput) {
+  try {
+    const user = await this.userService.create(input);
+    return { user, error: null };
+  } catch (error) {
+    return { 
+      user: null, 
+      error: { message: error.message, code: 'USER_CREATE_ERROR' }
+    };
+  }
+}
+```
+
+## 📊 Configuration Management
+
+### Environment Configuration
+```typescript
+// config/database.config.ts
+export default registerAs('database', () => ({
+  url: process.env.DATABASE_URL || 'file:./dev.db',
+}));
+
+// config/jwt.config.ts
+export default registerAs('jwt', () => ({
+  secret: process.env.JWT_SECRET || 'fallback-secret',
+  expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+}));
+
+// config/security.config.ts
+export default () => ({
+  security: {
+    jwt: { /* JWT settings */ },
+    throttling: { /* Rate limiting */ },
+    password: { /* Password policy */ },
+  },
+});
+```
+
+### Configuration Usage
+```typescript
+// In services
+constructor(private configService: ConfigService) {}
+
+// Access configuration
+const dbUrl = this.configService.get<string>('database.url');
+const jwtSecret = this.configService.get<string>('jwt.secret');
+```
+
+## 🚀 CLI Architecture
+
+### Command Structure
+```typescript
+@Command({ 
+  name: 'db', 
+  description: 'Database management commands'
+})
+export class DatabaseCommand extends CommandRunner {
+  async run(passedParams: string[]): Promise<void> {
+    const command = passedParams[0];
+    switch (command) {
+      case 'generate':
+        await this.generate();
+        break;
+      case 'migrate':
+        await this.migrate(passedParams[1]);
+        break;
+      // ... other commands
+    }
+  }
+}
+```
+
+### CLI Usage
+```bash
+# Database management
+yarn cli db                    # Generate Prisma client
+yarn cli db migrate [name]     # Create/apply migrations
+yarn cli db studio             # Open Prisma Studio
+yarn cli db status             # Show migration status
+```
+
+## 📋 Naming Conventions
+
+### Files
+- **Modules**: `*.module.ts` (e.g., `user.module.ts`)
+- **Services**: `*.service.ts` (e.g., `user.service.ts`)
+- **Resolvers**: `*.resolver.ts` (e.g., `user.resolver.ts`)
+- **Guards**: `*.guard.ts` (e.g., `jwt.guard.ts`)
+- **Entities**: `*.entity.ts` (e.g., `user.entity.ts`)
+- **Types**: `*.types.ts` (e.g., `user.types.ts`)
+- **DTOs**: `*.input.ts` (e.g., `create-user.input.ts`)
+- **Commands**: `*.command.ts` (e.g., `database.command.ts`)
+
+### Classes
+- **Modules**: PascalCase + "Module" (e.g., `UserModule`)
+- **Services**: PascalCase + "Service" (e.g., `UserService`)
+- **Resolvers**: PascalCase + "Resolver" (e.g., `UserResolver`)
+- **Guards**: PascalCase + "Guard" (e.g., `JwtAuthGuard`)
+- **Entities**: PascalCase (e.g., `User`, `UserResponse`)
+- **Input Types**: PascalCase + "Input" (e.g., `CreateUserInput`)
+
+### Database
+- **Tables**: snake_case (e.g., `users`, `user_roles`)
+- **Fields**: snake_case (e.g., `created_at`, `updated_at`)
+- **Relations**: camelCase in Prisma (e.g., `userRoles`, `assignedBy`)
+
+## 🔧 Development Patterns
+
+### Service Pattern
+```typescript
+@Injectable()
+export class UserService {
+  constructor(private prisma: PrismaService) {}
+
+  async findAll(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: { deletedAt: null }
+    });
+  }
+
+  async findOne(id: number): Promise<User> {
+    const user = await this.prisma.user.findUnique({
+      where: { id, deletedAt: null }
+    });
+    
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    
+    return user;
+  }
+
+  async create(input: CreateUserInput): Promise<User> {
+    // Validation
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: input.email }
+    });
+    
+    if (existingUser) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    // Business logic
+    const hashedPassword = await bcrypt.hash(input.password, 10);
+
+    // Create
+    return this.prisma.user.create({
+      data: { ...input, password: hashedPassword }
+    });
+  }
+}
+```
+
+### Resolver Pattern
+```typescript
+@Resolver(() => User)
+export class UserResolver {
+  constructor(private userService: UserService) {}
+
+  @Query(() => [User])
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions('user:read')
+  async users() {
+    return this.userService.findAll();
+  }
+
+  @Query(() => User, { nullable: true })
+  @UseGuards(JwtAuthGuard)
+  async user(@Args('id', { type: () => Int }) id: number) {
+    return this.userService.findOne(id);
+  }
+
+  @Mutation(() => UserResponse)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions('user:create')
+  async createUser(@Args('input') input: CreateUserInput) {
+    const user = await this.userService.create(input);
+    return { user, message: 'User created successfully' };
+  }
+}
+```
+
+## 🎯 Best Practices
+
+### 1. **Always Use Guards**
+- Protect all routes with appropriate guards
+- Use permission-based access control
+- Validate user authentication
+
+### 2. **Handle Errors Gracefully**
+- Use proper exception types
+- Provide meaningful error messages
+- Log errors for debugging
+
+### 3. **Validate Input**
+- Use GraphQL input types
+- Validate business rules
+- Sanitize user input
+
+### 4. **Audit Operations**
+- Log all important operations
+- Track user actions
+- Maintain audit trail
+
+### 5. **Use Type Safety**
+- Leverage TypeScript features
+- Use proper GraphQL types
+- Maintain type consistency
+
+### 6. **Follow Naming Conventions**
+- Consistent file naming
+- Clear class naming
+- Proper database naming
+
+This architecture ensures scalability, maintainability, and security! 🚀 

@@ -1,38 +1,64 @@
-import { Command, CommandRunner } from 'nest-commander';
+import { Command, CommandRunner, Option } from 'nest-commander';
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
 
 @Command({ 
   name: 'db', 
   description: 'Database management commands'
 })
 export class DatabaseCommand extends CommandRunner {
+  private path?: string;
+
   constructor() {
     super();
   }
 
-  async run(passedParams: string[]): Promise<void> {
+  @Option({
+    flags: '-p, --path <path>',
+    description: 'Custom path for seeder file',
+  })
+  parsePath(val: string): string {
+    return val;
+  }
+
+  async run(passedParams: string[], options?: any): Promise<void> {
     const command = passedParams[0];
+    
+    // Store the path option
+    this.path = options?.path;
     
     // If no command or 'sync', do the common workflow
     if (!command || command === 'sync') {
-      await this.sync(passedParams.slice(1));
+      await this.sync();
       return;
     }
     
     switch (command) {
-      case 'merge':
-        await this.merge(passedParams.slice(1));
-        break;
       case 'generate':
         await this.generate();
         break;
       case 'migrate':
         await this.migrate(passedParams[1]);
         break;
+      case 'migrate:dev':
+        await this.migrateDev(passedParams[1]);
+        break;
+      case 'migrate:deploy':
+        await this.migrateDeploy();
+        break;
+      case 'migrate:reset':
+        await this.migrateReset();
+        break;
+      case 'migrate:status':
+        await this.migrateStatus();
+        break;
+      case 'db:push':
+        await this.dbPush();
+        break;
+      case 'db:pull':
+        await this.dbPull();
+        break;
       case 'seed':
-        await this.seed();
+        await this.seed(passedParams[1]);
         break;
       case 'studio':
         await this.studio();
@@ -48,20 +74,11 @@ export class DatabaseCommand extends CommandRunner {
     }
   }
 
-  private async sync(modules: string[] = []): Promise<void> {
+  private async sync(): Promise<void> {
     try {
       console.log('🚀 Syncing database schema...');
       
-      // Step 1: Merge schemas
-      if (modules.length > 0) {
-        console.log(`🔄 Merging schema files for: ${modules.join(', ')}`);
-        this.mergeSchemaFiles(modules);
-      } else {
-        console.log('🔄 Merging all schema files...');
-        this.mergeSchemaFiles();
-      }
-      
-      // Step 2: Generate Prisma client
+      // Generate Prisma client
       console.log('🔄 Generating Prisma client...');
       execSync('npx prisma generate', { stdio: 'inherit' });
       
@@ -73,93 +90,9 @@ export class DatabaseCommand extends CommandRunner {
     }
   }
 
-  private async merge(modules: string[] = []): Promise<void> {
-    try {
-      if (modules.length > 0) {
-        console.log(`🔄 Merging schema files for: ${modules.join(', ')}`);
-        this.mergeSchemaFiles(modules);
-      } else {
-        console.log('🔄 Merging all schema files...');
-        this.mergeSchemaFiles();
-      }
-      console.log('✅ Schema files merged successfully!');
-    } catch (error) {
-      console.error('❌ Failed to merge schema files:', error.message);
-      process.exit(1);
-    }
-  }
-
-  private mergeSchemaFiles(modules: string[] = []): void {
-    let schemaFiles: string[];
-    
-    if (modules.length > 0) {
-      // Build file paths from specified modules
-      schemaFiles = modules.map(module => {
-        const [location, moduleName] = module.split('/');
-        if (location === 'core') {
-          return `src/core/${moduleName}/${moduleName}.prisma`;
-        } else if (location === 'modules') {
-          return `src/modules/${moduleName}/${moduleName}.prisma`;
-        } else {
-          // Try to infer the path
-          return `src/core/${module}/${module}.prisma`;
-        }
-      });
-    } else {
-      // Default: merge all known core schemas
-      schemaFiles = [
-        'src/core/users/users.prisma',
-        'src/core/permissions/permission.prisma', 
-        'src/core/audit/audit.prisma'
-      ];
-    }
-
-    let mergedContent = `// Auto-generated schema from modular files
-// Last updated: ${new Date().toISOString()}
-// Merged modules: ${modules.length > 0 ? modules.join(', ') : 'all core modules'}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-`;
-
-    let mergedCount = 0;
-    schemaFiles.forEach(file => {
-      try {
-        const content = readFileSync(file, 'utf8');
-        // Remove generator and datasource blocks from individual files
-        const cleanContent = content
-          .replace(/generator\s+\w+\s*\{[^}]*\}/g, '')
-          .replace(/datasource\s+\w+\s*\{[^}]*\}/g, '')
-          .trim();
-        
-        if (cleanContent) {
-          mergedContent += `\n// From ${file}\n${cleanContent}\n`;
-          mergedCount++;
-        }
-      } catch (error) {
-        console.warn(`⚠️ Warning: Could not read ${file}`);
-      }
-    });
-
-    if (mergedCount === 0) {
-      throw new Error('No valid schema files found to merge');
-    }
-
-    writeFileSync('prisma/schema.prisma', mergedContent);
-    console.log(`📊 Merged ${mergedCount} schema file(s)`);
-  }
-
   private async generate(): Promise<void> {
     try {
       console.log('🔄 Generating Prisma client...');
-      this.mergeSchemaFiles();
       execSync('npx prisma generate', { stdio: 'inherit' });
       console.log('✅ Prisma client generated successfully!');
     } catch (error) {
@@ -172,16 +105,84 @@ datasource db {
     try {
       if (name) {
         console.log(`🔄 Creating migration: ${name}`);
-        this.mergeSchemaFiles();
         execSync(`npx prisma migrate dev --name ${name}`, { stdio: 'inherit' });
       } else {
         console.log('🔄 Applying migrations...');
-        this.mergeSchemaFiles();
         execSync('npx prisma migrate deploy', { stdio: 'inherit' });
       }
       console.log('✅ Migration completed successfully!');
     } catch (error) {
       console.error('❌ Migration failed:', error.message);
+      process.exit(1);
+    }
+  }
+
+  private async migrateDev(name?: string): Promise<void> {
+    try {
+      if (name) {
+        console.log(`🔄 Creating development migration: ${name}`);
+        execSync(`npx prisma migrate dev --name ${name}`, { stdio: 'inherit' });
+      } else {
+        console.log('🔄 Creating development migration...');
+        execSync('npx prisma migrate dev', { stdio: 'inherit' });
+      }
+      console.log('✅ Development migration completed successfully!');
+    } catch (error) {
+      console.error('❌ Development migration failed:', error.message);
+      process.exit(1);
+    }
+  }
+
+  private async migrateDeploy(): Promise<void> {
+    try {
+      console.log('🚀 Deploying migrations to production...');
+      execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+      console.log('✅ Migrations deployed successfully!');
+    } catch (error) {
+      console.error('❌ Migration deployment failed:', error.message);
+      process.exit(1);
+    }
+  }
+
+  private async migrateReset(): Promise<void> {
+    try {
+      console.log('🔄 Resetting database and migrations...');
+      execSync('npx prisma migrate reset --force', { stdio: 'inherit' });
+      console.log('✅ Database reset successfully!');
+    } catch (error) {
+      console.error('❌ Database reset failed:', error.message);
+      process.exit(1);
+    }
+  }
+
+  private async migrateStatus(): Promise<void> {
+    try {
+      console.log('📊 Migration Status:');
+      execSync('npx prisma migrate status', { stdio: 'inherit' });
+    } catch (error) {
+      console.error('❌ Failed to get migration status:', error.message);
+      process.exit(1);
+    }
+  }
+
+  private async dbPush(): Promise<void> {
+    try {
+      console.log('🚀 Pushing schema to database...');
+      execSync('npx prisma db push', { stdio: 'inherit' });
+      console.log('✅ Schema pushed successfully!');
+    } catch (error) {
+      console.error('❌ Schema push failed:', error.message);
+      process.exit(1);
+    }
+  }
+
+  private async dbPull(): Promise<void> {
+    try {
+      console.log('📥 Pulling schema from database...');
+      execSync('npx prisma db pull', { stdio: 'inherit' });
+      console.log('✅ Schema pulled successfully!');
+    } catch (error) {
+      console.error('❌ Schema pull failed:', error.message);
       process.exit(1);
     }
   }
@@ -196,13 +197,29 @@ datasource db {
     }
   }
 
-  private async seed(): Promise<void> {
+  private async seed(seedType?: string): Promise<void> {
     try {
-      console.log('🌱 Seeding database...');
-      execSync('ts-node --transpile-only prisma/seed.ts', { stdio: 'inherit' });
+      // Check for custom path option
+      if (this.path) {
+        console.log(`🌱 Seeding from custom path: ${this.path}...`);
+        execSync(`ts-node --transpile-only prisma/${this.path}.ts`, { stdio: 'inherit' });
+        console.log('✅ Custom seeder executed successfully!');
+        return;
+      }
+
+      // If no seedType specified, run index.ts for ordered seeding
+      if (!seedType || seedType === 'all') {
+        console.log('🌱 Running ordered seeders from prisma/seeds/index.ts ...');
+        execSync('ts-node --transpile-only prisma/seeds/index.ts', { stdio: 'inherit' });
+        return;
+      }
+
+      // Run specific seeder
+      console.log(`🌱 Seeding ${seedType}...`);
+      execSync(`ts-node --transpile-only prisma/seeds/${seedType}.ts`, { stdio: 'inherit' });
       console.log('✅ Database seeded successfully!');
     } catch (error) {
-      console.error('❌ Failed to seed database (DATABASE_URL required)');
+      console.error('❌ Failed to seed database:', error.message);
       process.exit(1);
     }
   }
@@ -210,7 +227,6 @@ datasource db {
   private async studio(): Promise<void> {
     try {
       console.log('🎨 Opening Prisma Studio...');
-      this.mergeSchemaFiles();
       execSync('npx prisma studio', { stdio: 'inherit' });
     } catch (error) {
       console.error('❌ Failed to open Prisma Studio:', error.message);
@@ -230,24 +246,37 @@ datasource db {
   }
 
   private showHelp(): void {
-    console.log('\n🚀 Database Commands');
+    console.log('\n🗄️ Database Management Commands');
     console.log('\nUsage:');
-    console.log('  cli db [modules...]       # Default: merge schemas + generate client');
+    console.log('  cli db                    # Default: generate Prisma client');
     console.log('  cli db [command]          # Specific command');
     
     console.log('\n⚡ Quick Commands:');
-    console.log('  cli db                    Sync all schemas and generate client');
-    console.log('  cli db users              Sync only users module');
-    console.log('  cli db core/audit         Sync only audit from core');
+    console.log('  cli db                    Generate Prisma client');
     
-    console.log('\n🔧 Specific Commands:');
-    console.log('  merge [modules...]        Merge schemas only (no client generation)');
+    console.log('\n🔧 Migration Commands:');
     console.log('  generate                  Generate Prisma client only');
-    console.log('  migrate [name]            Create/apply migrations');
-    console.log('  seed                      Seed database with sample data');
+    console.log('  migrate [name]            Create/apply migrations (alias for migrate:dev)');
+    console.log('  migrate:dev [name]        Create development migration');
+    console.log('  migrate:deploy            Deploy migrations to production');
+    console.log('  migrate:reset             Reset database and migrations (⚠️ DESTRUCTIVE)');
+    console.log('  migrate:status            Show migration status');
+    
+    console.log('\n🗄️ Schema Commands:');
+    console.log('  db:push                   Push schema to database');
+    console.log('  db:pull                   Pull schema from database');
+    
+    console.log('\n🌱 Seeding Commands:');
+    console.log('  seed                      Run all seeders in prisma/seeds/ folder');
+    console.log('  seed [type]               Run specific seeder (permissions, users, etc.)');
+    console.log('  seed --path=path/to/file  Run custom seeder from specific path');
+    
+    console.log('\n🛠️ Utility Commands:');
     console.log('  studio                    Open Prisma Studio');
     console.log('  status                    Show migration status');
     console.log('  health                    Database health check');
+    
+    console.log('\n⚠️  Warning: migrate:reset will delete all data and reset migrations!');
     
     process.exit(0);
   }

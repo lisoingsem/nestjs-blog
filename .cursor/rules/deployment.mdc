@@ -1,0 +1,662 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Deployment Rules & Patterns
+
+## 🚀 Deployment Overview
+
+This project follows a **production-ready deployment strategy** with:
+- **Environment-based configuration** - Different settings for dev/staging/prod
+- **Docker containerization** - Consistent deployment across environments
+- **Database migrations** - Safe schema updates
+- **Health checks** - Application monitoring
+- **Security hardening** - Production security measures
+- **CI/CD pipeline** - Automated deployment process
+
+## 📁 Deployment Structure
+
+### Project Structure
+```
+├── Dockerfile                 # Main application container
+├── docker-compose.yml         # Local development setup
+├── docker-compose.prod.yml    # Production setup
+├── .dockerignore              # Docker ignore file
+├── .env.example               # Environment variables template
+├── .env.local                 # Local environment (gitignored)
+├── .env.staging               # Staging environment
+├── .env.production            # Production environment
+├── scripts/                   # Deployment scripts
+│   ├── deploy.sh              # Deployment script
+│   ├── migrate.sh             # Database migration script
+│   └── health-check.sh        # Health check script
+└── docs/                      # Deployment documentation
+    ├── deployment.md          # Deployment guide
+    └── troubleshooting.md     # Troubleshooting guide
+```
+
+## 🐳 Docker Configuration
+
+### 1. **Dockerfile**
+```dockerfile
+# Multi-stage build for production
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY yarn.lock ./
+
+# Install dependencies
+RUN yarn install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN yarn build
+
+# Production stage
+FROM node:18-alpine AS production
+
+WORKDIR /app
+
+# Install production dependencies only
+COPY package*.json ./
+COPY yarn.lock ./
+RUN yarn install --frozen-lockfile --production
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nestjs -u 1001
+
+# Change ownership
+RUN chown -R nestjs:nodejs /app
+USER nestjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node dist/src/health-check.js
+
+# Start application
+CMD ["node", "dist/src/main.js"]
+```
+
+### 2. **Docker Compose (Development)**
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@db:5432/blog_dev
+      - JWT_SECRET=dev-secret-change-in-production
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: yarn start:dev
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=blog_dev
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+```
+
+### 3. **Docker Compose (Production)**
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - THROTTLE_TTL=${THROTTLE_TTL}
+      - THROTTLE_LIMIT=${THROTTLE_LIMIT}
+    depends_on:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "dist/src/health-check.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+### 4. **Docker Ignore**
+```dockerignore
+# .dockerignore
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.staging
+.env.production
+.nyc_output
+coverage
+.nyc_output
+.coverage
+.cache
+dist
+build
+.DS_Store
+*.log
+.vscode
+.idea
+*.swp
+*.swo
+*~
+```
+
+## 🔧 Environment Configuration
+
+### 1. **Environment Variables Template**
+```bash
+# .env.example
+# Application
+NODE_ENV=development
+PORT=3000
+
+# Database
+DATABASE_URL=postgresql://postgres:password@localhost:5432/blog_dev
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=blog_dev
+DB_USER=postgres
+DB_PASSWORD=password
+
+# JWT
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Security
+THROTTLE_TTL=60000
+THROTTLE_LIMIT=10
+
+# Redis (for caching/sessions)
+REDIS_URL=redis://localhost:6379
+
+# Logging
+LOG_LEVEL=info
+LOG_FORMAT=json
+
+# Monitoring
+SENTRY_DSN=
+```
+
+### 2. **Environment-Specific Configs**
+```bash
+# .env.local (Development)
+NODE_ENV=development
+DATABASE_URL=postgresql://postgres:password@localhost:5432/blog_dev
+JWT_SECRET=dev-secret-change-in-production
+
+# .env.staging
+NODE_ENV=staging
+DATABASE_URL=postgresql://user:pass@staging-db:5432/blog_staging
+JWT_SECRET=staging-secret-change-in-production
+
+# .env.production
+NODE_ENV=production
+DATABASE_URL=postgresql://user:pass@prod-db:5432/blog_production
+JWT_SECRET=production-super-secret-key
+```
+
+## 🗄️ Database Deployment
+
+### 1. **Migration Script**
+```bash
+#!/bin/bash
+# scripts/migrate.sh
+
+set -e
+
+echo "🚀 Starting database migration..."
+
+# Check if DATABASE_URL is set
+if [ -z "$DATABASE_URL" ]; then
+    echo "❌ DATABASE_URL environment variable is not set"
+    exit 1
+fi
+
+# Generate Prisma client
+echo "🔄 Generating Prisma client..."
+npx prisma generate
+
+# Run migrations
+echo "🔄 Running database migrations..."
+npx prisma migrate deploy
+
+# Verify migration status
+echo "📊 Migration status:"
+npx prisma migrate status
+
+echo "✅ Database migration completed successfully!"
+```
+
+### 2. **Database Health Check**
+```bash
+#!/bin/bash
+# scripts/health-check.sh
+
+set -e
+
+echo "🏥 Running database health check..."
+
+# Test database connection
+npx prisma db execute --stdin <<< "SELECT 1" > /dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+    echo "✅ Database connection is healthy"
+    exit 0
+else
+    echo "❌ Database connection failed"
+    exit 1
+fi
+```
+
+### 3. **Database Backup Script**
+```bash
+#!/bin/bash
+# scripts/backup.sh
+
+set -e
+
+BACKUP_DIR="/backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="backup_${DATE}.sql"
+
+echo "💾 Starting database backup..."
+
+# Create backup directory if it doesn't exist
+mkdir -p $BACKUP_DIR
+
+# Extract database connection details
+DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\).*/\1/p')
+DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+DB_NAME=$(echo $DATABASE_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
+DB_USER=$(echo $DATABASE_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
+DB_PASSWORD=$(echo $DATABASE_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+
+# Create backup
+PGPASSWORD=$DB_PASSWORD pg_dump -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME > "$BACKUP_DIR/$BACKUP_FILE"
+
+echo "✅ Database backup completed: $BACKUP_FILE"
+```
+
+## 🔒 Security Hardening
+
+### 1. **Production Security Configuration**
+```typescript
+// config/security.prod.config.ts
+export default () => ({
+  security: {
+    jwt: {
+      secret: process.env.JWT_SECRET,
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+      refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    },
+    
+    throttling: {
+      ttl: parseInt(process.env.THROTTLE_TTL || '60000'),
+      limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
+    },
+    
+    cors: {
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+      credentials: true,
+    },
+    
+    helmet: {
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "https:"],
+        },
+      },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+    },
+  },
+});
+```
+
+### 2. **Nginx Configuration**
+```nginx
+# nginx.conf
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream app {
+        server app:3000;
+    }
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+
+    server {
+        listen 80;
+        server_name localhost;
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name localhost;
+
+        # SSL configuration
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+        ssl_prefer_server_ciphers off;
+
+        # Security headers
+        add_header X-Frame-Options DENY;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+        # GraphQL endpoint
+        location /graphql {
+            limit_req zone=api burst=20 nodelay;
+            
+            proxy_pass http://app;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_bypass $http_upgrade;
+        }
+
+        # Health check endpoint
+        location /health {
+            proxy_pass http://app;
+            access_log off;
+        }
+
+        # Static files (if any)
+        location /static/ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+}
+```
+
+## 📊 Monitoring & Health Checks
+
+### 1. **Health Check Endpoint**
+```typescript
+// health-check.ts
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from 'shared/prisma';
+
+@Injectable()
+export class HealthService {
+  constructor(private prisma: PrismaService) {}
+
+  async check(): Promise<{ status: string; timestamp: string; services: any }> {
+    const dbStatus = await this.checkDatabase();
+    
+    return {
+      status: dbStatus ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      services: {
+        database: dbStatus ? 'healthy' : 'unhealthy',
+      },
+    };
+  }
+
+  private async checkDatabase(): Promise<boolean> {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+}
+```
+
+### 2. **Health Check Resolver**
+```typescript
+// health.resolver.ts
+import { Resolver, Query } from '@nestjs/graphql';
+import { HealthService } from './health.service';
+
+@Resolver()
+export class HealthResolver {
+  constructor(private healthService: HealthService) {}
+
+  @Query(() => String)
+  async health(): Promise<string> {
+    const status = await this.healthService.check();
+    return status.status === 'healthy' ? 'OK' : 'ERROR';
+  }
+}
+```
+
+## 🚀 Deployment Scripts
+
+### 1. **Deployment Script**
+```bash
+#!/bin/bash
+# scripts/deploy.sh
+
+set -e
+
+ENVIRONMENT=$1
+VERSION=$2
+
+if [ -z "$ENVIRONMENT" ] || [ -z "$VERSION" ]; then
+    echo "Usage: ./deploy.sh <environment> <version>"
+    echo "Example: ./deploy.sh production v1.0.0"
+    exit 1
+fi
+
+echo "🚀 Deploying version $VERSION to $ENVIRONMENT..."
+
+# Load environment variables
+if [ -f ".env.$ENVIRONMENT" ]; then
+    export $(cat .env.$ENVIRONMENT | grep -v '^#' | xargs)
+else
+    echo "❌ Environment file .env.$ENVIRONMENT not found"
+    exit 1
+fi
+
+# Build Docker image
+echo "🔨 Building Docker image..."
+docker build -t blog:$VERSION .
+
+# Run database migrations
+echo "🗄️ Running database migrations..."
+./scripts/migrate.sh
+
+# Deploy application
+echo "🚀 Deploying application..."
+docker-compose -f docker-compose.prod.yml up -d
+
+# Health check
+echo "🏥 Running health check..."
+sleep 30
+./scripts/health-check.sh
+
+echo "✅ Deployment completed successfully!"
+```
+
+### 2. **Rollback Script**
+```bash
+#!/bin/bash
+# scripts/rollback.sh
+
+set -e
+
+PREVIOUS_VERSION=$1
+
+if [ -z "$PREVIOUS_VERSION" ]; then
+    echo "Usage: ./rollback.sh <previous-version>"
+    echo "Example: ./rollback.sh v0.9.0"
+    exit 1
+fi
+
+echo "🔄 Rolling back to version $PREVIOUS_VERSION..."
+
+# Stop current deployment
+docker-compose -f docker-compose.prod.yml down
+
+# Deploy previous version
+docker-compose -f docker-compose.prod.yml up -d
+
+# Health check
+echo "🏥 Running health check..."
+sleep 30
+./scripts/health-check.sh
+
+echo "✅ Rollback completed successfully!"
+```
+
+## 📋 Deployment Checklist
+
+### Pre-Deployment
+- [ ] All tests passing
+- [ ] Code review completed
+- [ ] Environment variables configured
+- [ ] Database backup created
+- [ ] SSL certificates ready
+- [ ] Domain DNS configured
+
+### Deployment
+- [ ] Build Docker image
+- [ ] Run database migrations
+- [ ] Deploy application
+- [ ] Run health checks
+- [ ] Verify functionality
+- [ ] Monitor logs
+
+### Post-Deployment
+- [ ] Monitor application performance
+- [ ] Check error rates
+- [ ] Verify security headers
+- [ ] Test critical user flows
+- [ ] Update documentation
+
+## 🚨 Troubleshooting
+
+### Common Issues
+1. **Database Connection Failed**
+   - Check DATABASE_URL environment variable
+   - Verify database is running and accessible
+   - Check network connectivity
+
+2. **JWT Secret Not Set**
+   - Ensure JWT_SECRET is set in environment
+   - Verify secret is strong enough for production
+
+3. **Migration Failures**
+   - Check database permissions
+   - Verify migration files are up to date
+   - Check for conflicting migrations
+
+4. **Health Check Failures**
+   - Verify all services are running
+   - Check application logs
+   - Verify port configurations
+
+### Log Analysis
+```bash
+# View application logs
+docker-compose logs app
+
+# View database logs
+docker-compose logs db
+
+# Follow logs in real-time
+docker-compose logs -f app
+
+# Check specific service logs
+docker logs <container-id>
+```
+
+This deployment strategy ensures reliable, secure, and scalable application deployment! 🚀

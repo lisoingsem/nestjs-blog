@@ -1,0 +1,705 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Testing Rules & Patterns
+
+## 🧪 Testing Overview
+
+This project follows a **comprehensive testing strategy** with multiple testing layers:
+- **Unit Tests** - Test individual services and functions
+- **Integration Tests** - Test module interactions
+- **E2E Tests** - Test complete user workflows
+- **GraphQL Tests** - Test GraphQL resolvers and schema
+- **Database Tests** - Test Prisma operations and migrations
+
+## 📁 Testing Structure
+
+### Test File Organization
+```
+src/
+├── modules/
+│   ├── users/
+│   │   ├── __tests__/              # Test directory
+│   │   │   ├── user.service.spec.ts # Service tests
+│   │   │   ├── user.resolver.spec.ts # Resolver tests
+│   │   │   └── user.module.spec.ts  # Module tests
+│   │   └── user.service.ts
+├── shared/
+│   ├── services/
+│   │   ├── __tests__/
+│   │   │   └── security.service.spec.ts
+│   │   └── security.service.ts
+└── test/                           # Global test utilities
+    ├── setup.ts                    # Test setup
+    ├── fixtures/                   # Test data
+    └── helpers/                    # Test helpers
+```
+
+## 🔧 Testing Patterns
+
+### 1. **Service Testing Pattern**
+```typescript
+// user.service.spec.ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { UserService } from '../user.service';
+import { PrismaService } from 'shared/prisma';
+import { AuditService } from '../../audit/audit.service';
+import { SecurityService } from 'shared/services/security.service';
+import { CreateUserInput, UpdateUserInput } from '../dto';
+import { User } from '@prisma/client';
+
+describe('UserService', () => {
+  let service: UserService;
+  let prisma: PrismaService;
+  let auditService: AuditService;
+
+  const mockPrismaService = {
+    user: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+
+  const mockAuditService = {
+    logUserAction: jest.fn(),
+    logError: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UserService,
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
+        },
+        {
+          provide: SecurityService,
+          useValue: {
+            validateAuthentication: jest.fn(),
+            validateResourceAccess: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<UserService>(UserService);
+    prisma = module.get<PrismaService>(PrismaService);
+    auditService = module.get<AuditService>(AuditService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('findAll', () => {
+    it('should return all users', async () => {
+      const mockUsers: User[] = [
+        { id: 1, email: 'test@example.com', name: 'Test User', password: 'hash', createdAt: new Date(), updatedAt: new Date(), deletedAt: null },
+      ];
+
+      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
+
+      const result = await service.findAll();
+
+      expect(result).toEqual(mockUsers);
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        where: { deletedAt: null }
+      });
+    });
+
+    it('should handle database errors', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaService.user.findMany.mockRejectedValue(error);
+
+      await expect(service.findAll()).rejects.toThrow('Database connection failed');
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a user by id', async () => {
+      const mockUser: User = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        password: 'hash',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+
+      const result = await service.findOne(1);
+
+      expect(result).toEqual(mockUser);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 1, deletedAt: null }
+      });
+    });
+
+    it('should throw NotFoundException when user not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne(999)).rejects.toThrow('User with ID 999 not found');
+    });
+  });
+
+  describe('create', () => {
+    it('should create a new user', async () => {
+      const createInput: CreateUserInput = {
+        email: 'new@example.com',
+        password: 'password123',
+        name: 'New User',
+      };
+
+      const mockUser: User = {
+        id: 1,
+        ...createInput,
+        password: 'hashedPassword',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+
+      const result = await service.create(createInput);
+
+      expect(result).toEqual(mockUser);
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          email: createInput.email,
+          name: createInput.name,
+        })
+      });
+    });
+
+    it('should throw ConflictException when email already exists', async () => {
+      const createInput: CreateUserInput = {
+        email: 'existing@example.com',
+        password: 'password123',
+        name: 'New User',
+      };
+
+      const existingUser: User = {
+        id: 1,
+        email: 'existing@example.com',
+        name: 'Existing User',
+        password: 'hash',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(existingUser);
+
+      await expect(service.create(createInput)).rejects.toThrow('User with this email already exists');
+    });
+  });
+});
+```
+
+### 2. **Resolver Testing Pattern**
+```typescript
+// user.resolver.spec.ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { UserResolver } from '../user.resolver';
+import { UserService } from '../user.service';
+import { CreateUserInput, UpdateUserInput } from '../dto';
+import { User } from '@prisma/client';
+
+describe('UserResolver', () => {
+  let resolver: UserResolver;
+  let userService: UserService;
+
+  const mockUserService = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UserResolver,
+        {
+          provide: UserService,
+          useValue: mockUserService,
+        },
+      ],
+    }).compile();
+
+    resolver = module.get<UserResolver>(UserResolver);
+    userService = module.get<UserService>(UserService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('users', () => {
+    it('should return all users', async () => {
+      const mockUsers: User[] = [
+        { id: 1, email: 'test@example.com', name: 'Test User', password: 'hash', createdAt: new Date(), updatedAt: new Date(), deletedAt: null },
+      ];
+
+      mockUserService.findAll.mockResolvedValue(mockUsers);
+
+      const result = await resolver.users();
+
+      expect(result).toEqual(mockUsers);
+      expect(mockUserService.findAll).toHaveBeenCalled();
+    });
+  });
+
+  describe('user', () => {
+    it('should return a user by id', async () => {
+      const mockUser: User = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        password: 'hash',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      mockUserService.findOne.mockResolvedValue(mockUser);
+
+      const result = await resolver.user(1);
+
+      expect(result).toEqual(mockUser);
+      expect(mockUserService.findOne).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('createUser', () => {
+    it('should create a new user', async () => {
+      const createInput: CreateUserInput = {
+        email: 'new@example.com',
+        password: 'password123',
+        name: 'New User',
+      };
+
+      const mockUser: User = {
+        id: 1,
+        ...createInput,
+        password: 'hashedPassword',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      mockUserService.create.mockResolvedValue(mockUser);
+
+      const result = await resolver.createUser(createInput);
+
+      expect(result).toEqual({ user: mockUser, message: 'User created successfully' });
+      expect(mockUserService.create).toHaveBeenCalledWith(createInput);
+    });
+  });
+});
+```
+
+### 3. **GraphQL Testing Pattern**
+```typescript
+// user.graphql.spec.ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import { GraphQLModule } from '@nestjs/graphql';
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { join } from 'path';
+import * as request from 'supertest';
+import { UserModule } from '../user.module';
+
+describe('User GraphQL', () => {
+  let app: INestApplication;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [
+        UserModule,
+        GraphQLModule.forRoot<ApolloDriverConfig>({
+          driver: ApolloDriver,
+          autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+          sortSchema: true,
+        }),
+      ],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  describe('queries', () => {
+    it('should query users', () => {
+      const query = `
+        query {
+          users {
+            id
+            email
+            name
+          }
+        }
+      `;
+
+      return request(app.getHttpServer())
+        .post('/graphql')
+        .send({ query })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data.users).toBeDefined();
+        });
+    });
+
+    it('should query single user', () => {
+      const query = `
+        query {
+          user(id: 1) {
+            id
+            email
+            name
+          }
+        }
+      `;
+
+      return request(app.getHttpServer())
+        .post('/graphql')
+        .send({ query })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data.user).toBeDefined();
+        });
+    });
+  });
+
+  describe('mutations', () => {
+    it('should create user', () => {
+      const mutation = `
+        mutation {
+          createUser(input: {
+            email: "test@example.com"
+            password: "password123"
+            name: "Test User"
+          }) {
+            user {
+              id
+              email
+              name
+            }
+            message
+          }
+        }
+      `;
+
+      return request(app.getHttpServer())
+        .post('/graphql')
+        .send({ query: mutation })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data.createUser.user).toBeDefined();
+          expect(res.body.data.createUser.message).toBe('User created successfully');
+        });
+    });
+  });
+});
+```
+
+### 4. **Integration Testing Pattern**
+```typescript
+// user.integration.spec.ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import { PrismaService } from 'shared/prisma';
+import { UserModule } from '../user.module';
+import { CreateUserInput } from '../dto';
+
+describe('User Integration', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [UserModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    prisma = moduleFixture.get<PrismaService>(PrismaService);
+    await app.init();
+
+    // Clean database before each test
+    await prisma.user.deleteMany();
+  });
+
+  afterEach(async () => {
+    await prisma.user.deleteMany();
+    await app.close();
+  });
+
+  describe('User CRUD operations', () => {
+    it('should create and retrieve user', async () => {
+      const createInput: CreateUserInput = {
+        email: 'test@example.com',
+        password: 'password123',
+        name: 'Test User',
+      };
+
+      // Create user
+      const createdUser = await prisma.user.create({
+        data: createInput,
+      });
+
+      expect(createdUser).toBeDefined();
+      expect(createdUser.email).toBe(createInput.email);
+      expect(createdUser.name).toBe(createInput.name);
+
+      // Retrieve user
+      const retrievedUser = await prisma.user.findUnique({
+        where: { id: createdUser.id },
+      });
+
+      expect(retrievedUser).toBeDefined();
+      expect(retrievedUser.id).toBe(createdUser.id);
+    });
+
+    it('should handle unique email constraint', async () => {
+      const createInput: CreateUserInput = {
+        email: 'duplicate@example.com',
+        password: 'password123',
+        name: 'Test User',
+      };
+
+      // Create first user
+      await prisma.user.create({ data: createInput });
+
+      // Try to create second user with same email
+      await expect(
+        prisma.user.create({ data: createInput })
+      ).rejects.toThrow();
+    });
+  });
+});
+```
+
+## 🛠️ Test Utilities
+
+### 1. **Test Fixtures**
+```typescript
+// test/fixtures/user.fixtures.ts
+import { User } from '@prisma/client';
+import { CreateUserInput } from '../../modules/users/dto';
+
+export const createMockUser = (overrides: Partial<User> = {}): User => ({
+  id: 1,
+  email: 'test@example.com',
+  name: 'Test User',
+  password: 'hashedPassword',
+  createdAt: new Date('2023-01-01'),
+  updatedAt: new Date('2023-01-01'),
+  deletedAt: null,
+  ...overrides,
+});
+
+export const createMockCreateUserInput = (overrides: Partial<CreateUserInput> = {}): CreateUserInput => ({
+  email: 'new@example.com',
+  password: 'password123',
+  name: 'New User',
+  ...overrides,
+});
+```
+
+### 2. **Test Helpers**
+```typescript
+// test/helpers/test-utils.ts
+import { INestApplication } from '@nestjs/common';
+import { PrismaService } from 'shared/prisma';
+
+export const cleanDatabase = async (prisma: PrismaService) => {
+  await prisma.auditLog.deleteMany();
+  await prisma.userRole.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.role.deleteMany();
+  await prisma.permission.deleteMany();
+};
+
+export const createTestApp = async (): Promise<INestApplication> => {
+  const { Test, TestingModule } = await import('@nestjs/testing');
+  const { AppModule } = await import('../../app.module');
+
+  const moduleFixture = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+
+  return moduleFixture.createNestApplication();
+};
+```
+
+### 3. **Mock Factories**
+```typescript
+// test/helpers/mock-factories.ts
+export const createMockPrismaService = () => ({
+  user: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+  auditLog: {
+    create: jest.fn(),
+  },
+  $transaction: jest.fn(),
+});
+
+export const createMockAuditService = () => ({
+  logUserAction: jest.fn(),
+  logError: jest.fn(),
+});
+
+export const createMockSecurityService = () => ({
+  validateAuthentication: jest.fn(),
+  validateResourceAccess: jest.fn(),
+  getUserId: jest.fn(),
+});
+```
+
+## 📊 Test Coverage
+
+### 1. **Service Coverage**
+- [ ] All CRUD operations
+- [ ] Business logic validation
+- [ ] Error handling scenarios
+- [ ] Audit logging integration
+- [ ] Security validation
+
+### 2. **Resolver Coverage**
+- [ ] All GraphQL queries
+- [ ] All GraphQL mutations
+- [ ] Input validation
+- [ ] Authentication/authorization
+- [ ] Error responses
+
+### 3. **Integration Coverage**
+- [ ] Database operations
+- [ ] Module interactions
+- [ ] End-to-end workflows
+- [ ] Error scenarios
+
+## 🚀 Testing Best Practices
+
+### 1. **Arrange-Act-Assert Pattern**
+```typescript
+it('should create user successfully', async () => {
+  // Arrange
+  const createInput = createMockCreateUserInput();
+  const expectedUser = createMockUser();
+  mockPrismaService.user.create.mockResolvedValue(expectedUser);
+
+  // Act
+  const result = await service.create(createInput);
+
+  // Assert
+  expect(result).toEqual(expectedUser);
+  expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+    data: createInput
+  });
+});
+```
+
+### 2. **Test Isolation**
+```typescript
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+afterEach(async () => {
+  await cleanDatabase(prisma);
+});
+```
+
+### 3. **Meaningful Test Names**
+```typescript
+// Good
+it('should throw NotFoundException when user does not exist', async () => {
+  // test implementation
+});
+
+// Bad
+it('should work', async () => {
+  // test implementation
+});
+```
+
+### 4. **Mock External Dependencies**
+```typescript
+// Mock Prisma service
+const mockPrismaService = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+};
+
+// Mock external services
+const mockAuditService = {
+  logUserAction: jest.fn(),
+};
+```
+
+### 5. **Test Error Scenarios**
+```typescript
+it('should handle database connection errors', async () => {
+  const error = new Error('Database connection failed');
+  mockPrismaService.user.findMany.mockRejectedValue(error);
+
+  await expect(service.findAll()).rejects.toThrow('Database connection failed');
+});
+```
+
+## 📋 Testing Checklist
+
+### Unit Tests
+- [ ] Service methods with mocked dependencies
+- [ ] Resolver methods with mocked services
+- [ ] Error handling scenarios
+- [ ] Business logic validation
+- [ ] Input validation
+
+### Integration Tests
+- [ ] Database operations
+- [ ] Module interactions
+- [ ] GraphQL queries and mutations
+- [ ] Authentication flows
+- [ ] Error scenarios
+
+### Test Quality
+- [ ] High test coverage (>80%)
+- [ ] Meaningful test names
+- [ ] Proper test isolation
+- [ ] Mock external dependencies
+- [ ] Test error scenarios
+
+### Test Maintenance
+- [ ] Keep tests up to date
+- [ ] Refactor tests when code changes
+- [ ] Use test utilities and fixtures
+- [ ] Regular test reviews
+
+This comprehensive testing approach ensures code quality and reliability! 🧪

@@ -1,0 +1,31 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { AuthService } from './auth.service';
+import { AuthResolver } from './auth.resolver';
+import { JwtStrategy } from './jwt.strategy';
+import { PrismaModule } from 'shared/prisma';
+import { JwtAuthGuard } from 'shared/guards';
+import './entities'; // Import GraphQL entities
+import './types'; // Import GraphQL types
+
+@Module({
+  imports: [
+    PrismaModule,
+    PassportModule.register({ session: false }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('jwt.secret'),
+        signOptions: { 
+          expiresIn: configService.get<string>('jwt.expiresIn'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  providers: [AuthService, AuthResolver, JwtStrategy, JwtAuthGuard],
+  exports: [AuthService, JwtStrategy, JwtAuthGuard],
+})
+export class AuthModule {} 

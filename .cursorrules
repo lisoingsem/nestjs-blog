@@ -1,54 +1,64 @@
 # Cursor Rules for NestJS Blog Project
 
-## Project Overview
+## 🏗️ Project Overview
 
 This is a **NestJS Blog API** with modular architecture featuring:
-- **Core modules** (`src/core/`) - Essential business functionality (auth, users, permissions, audit)
-- **Feature modules** (`src/modules/`) - Domain-specific features
-- **Dynamic module loading** - Automatic module discovery
-- **Modular Prisma schemas** - Each core module has its own `.prisma` file
+- **GraphQL API** with code-first approach
+- **JWT Authentication** with role-based access control
+- **Prisma ORM** with PostgreSQL database
+- **Modular structure** with clear separation of concerns
 - **CLI system** with nest-commander for database management
-- **GraphQL API** with JWT authentication and RBAC
+- **Security-first** approach with comprehensive guards and validation
 
-## Detailed Rules
+## 📚 Comprehensive Rules Documentation
 
-For complete rules, refer to these organized files:
-- **Architecture**: `.cursor/rules/architecture.mdc` - Module boundaries, structure, dependencies
-- **Database**: `.cursor/rules/database.mdc` - Prisma schemas, migrations, repository patterns
+For complete rules and patterns, refer to these organized files:
+
+### 🏗️ **Architecture & Structure**
+- **Architecture**: `.cursor/rules/architecture.mdc` - Module boundaries, structure, dependencies, patterns
+- **GraphQL**: `.cursor/rules/graphql.mdc` - Code-first approach, resolvers, types, schema patterns
+
+### 🗄️ **Data & Services**
+- **Database**: `.cursor/rules/database.mdc` - Prisma schemas, migrations, service patterns
+- **Services**: `.cursor/rules/services.mdc` - Service layer patterns, business logic, error handling
+
+### 🔧 **Development & Operations**
 - **CLI**: `.cursor/rules/cli.mdc` - Command patterns and database management
+- **Security**: `.cursor/rules/security.mdc` - Authentication, authorization, security patterns
+- **Testing**: `.cursor/rules/testing.mdc` - Unit tests, integration tests, testing patterns
+- **Deployment**: `.cursor/rules/deployment.mdc` - Docker, environment config, deployment scripts
 
 ## Key Principles
 
 ### 1. 🏗️ Architecture Rules
-- **Core modules** (`src/core/`) contain business-critical functionality
+- **Core modules** (`src/modules/`) contain business-critical functionality
 - **Feature modules** (`src/modules/`) contain domain-specific features  
 - **Common utilities** (`src/common/`) contain shared infrastructure
 - **No circular dependencies** - Dependencies flow downward only
 - **Dynamic loading** - Modules auto-discovered, no manual imports in app.module.ts
 
 ### 2. 🗄️ Database Rules
-- **Modular schemas** - Each core module has `[module].prisma` file
-- **Schema merging** - Always run `yarn run db` before Prisma operations
+- **Single schema** - Use standard `prisma/schema.prisma` file
+- **Standard Prisma workflow** - Use standard Prisma commands directly
 - **Service-only pattern** - Services use Prisma directly, no repository abstraction
-- **Migrations** - Use descriptive names, always test, merge schemas first
+- **Migrations** - Use descriptive names, always test
 
 ### 3. 📁 File Naming Conventions
 - **Services**: `*.service.ts`
 - **Modules**: `*.module.ts`
 - **DTOs**: `*.input.ts`, `*.args.ts`
 - **Commands**: `*.command.ts`
-- **Schemas**: `[module-name].prisma`
 - **Guards**: `*.guard.ts`
 - **Interceptors**: `*.interceptor.ts`
 
 ### 4. 📦 Import Rules
 ```typescript
 // ✅ Use path aliases
-import { UserService } from '@core/users';
+import { UserService } from '@modules/users';
 import { PrismaService } from '@common/prisma';
 
 // ❌ Avoid relative paths (except in CLI)
-import { UserService } from '../../core/users/user.service';
+import { UserService } from '../../modules/users/user.service';
 
 // Import order: Node modules → Internal modules → Types
 ```
@@ -61,7 +71,6 @@ module-name/
 ├── *.module.ts       # NestJS module
 ├── dto/              # Input/output types
 ├── index.ts          # Public API exports
-└── *.prisma          # Schema (core modules only)
 ```
 
 ### 6. 🛡️ Security Patterns
@@ -116,16 +125,13 @@ export class EmailService implements IEmailService {
 
 ### 8. 🔧 CLI Commands
 ```bash
-# Unified database sync (recommended)
-yarn run db                  # Merge schemas + generate client
-yarn run db users            # Sync only users module
-yarn run db core/audit       # Sync only audit from core
-
-# Specific commands
-yarn run cli db merge        # Merge schemas only
-yarn run cli db generate     # Generate client only
-yarn run cli db migrate      # Run migrations
-yarn run cli db studio       # Open Prisma Studio
+# Database management
+yarn run cli db                    # Generate Prisma client
+yarn run cli db generate           # Generate client only
+yarn run cli db migrate [name]     # Create/apply migrations
+yarn run cli db studio             # Open Prisma Studio
+yarn run cli db status             # Show migration status
+yarn run cli db health             # Database health check
 ```
 
 ### 9. 📊 Logging Standards
@@ -173,17 +179,13 @@ describe('UserService', () => {
 
 ## Current Project State
 
-**Existing core modules**:
+**Existing modules**:
 - `auth/` - JWT authentication
 - `users/` - User management
 - `permissions/` - Role-based access control  
 - `audit/` - Activity tracking
 
-**Database schemas**:
-- `src/core/users/users.prisma`
-- `src/core/permissions/permissions.prisma`
-- `src/core/audit/audit.prisma`
-- `prisma/base.prisma` (business models like Post)
+**Database schema**: Single `prisma/schema.prisma` file
 
 **CLI system**: nest-commander based with database management commands
 
@@ -192,12 +194,12 @@ describe('UserService', () => {
 ## AI Assistant Guidelines
 
 When generating code:
-1. **Follow modular architecture** - Respect core/feature/common boundaries
+1. **Follow modular architecture** - Respect modules/common boundaries
 2. **Use service-only pattern** - Services use Prisma directly, no repository abstraction
 3. **Include proper validation** - DTOs, guards, exception handling
 4. **Consider security** - Authentication, authorization, audit logging
 5. **Follow naming conventions** - File names, class names, database tables
-6. **Use the CLI system** - For database operations, schema merging
+6. **Use the CLI system** - For database operations
 7. **Maintain type safety** - Interfaces for external services only
 8. **Include tests** - Unit tests for services, mock PrismaService
 9. **Document appropriately** - JSDoc for APIs, clear variable names

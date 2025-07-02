@@ -5,34 +5,25 @@ alwaysApply: false
 ---
 # 🗄️ Database & Prisma Rules
 
-## Modular Schema System
+## Schema System
 
-**Philosophy**: Each core module manages its own database schema
+**Philosophy**: Use a single Prisma schema file for the entire application
 
 ### Schema Organization
 
 ```
-src/core/
-├── users/users.prisma         # User models
-├── permissions/permissions.prisma # RBAC models  
-├── audit/audit.prisma         # Audit logging
-└── auth/                      # (uses users schema)
-
 prisma/
-├── base.prisma               # Non-core business models (Post, etc.)
-├── schema.prisma             # Merged from all modules (generated)
-└── migrations/               # Database migrations
+├── schema.prisma               # Main schema file
+└── migrations/                 # Database migrations
 ```
 
 ### Schema Naming Rules
 
-**Files**: `[module-name].prisma` in core module directories
+**Files**: Single `schema.prisma` file in the `prisma/` directory
 ```
-✅ src/core/users/users.prisma
-✅ src/core/permissions/permissions.prisma  
-✅ src/core/audit/audit.prisma
-❌ src/core/users/user.prisma (singular)
-❌ src/modules/posts/posts.prisma (feature modules don't have schemas)
+✅ prisma/schema.prisma
+❌ src/modules/users/users.prisma (modular schemas not used)
+❌ src/modules/posts/posts.prisma (modular schemas not used)
 ```
 
 **Models**: PascalCase
@@ -66,159 +57,31 @@ model AuditLog {
 }
 ```
 
-## Schema Merging Workflow
+## Database Workflow
 
-**CRITICAL**: Always merge schemas before Prisma operations
+**CRITICAL**: Use standard Prisma commands directly
 
 ### Manual Workflow
 ```bash
-# 1. Merge modular schemas
-npm run cli db merge
-
-# 2. Then run Prisma commands
+# Generate Prisma client
 npx prisma generate
-npx prisma migrate dev --name feature-name
-```
 
-### Automated Scripts
-```bash
-# These automatically merge first:
-npm run generate     # merge + generate
-npm run migrate      # merge + migrate dev
-npm run studio       # merge + studio
+# Create migration
+npx prisma migrate dev --name feature-name
+
+# Apply migrations
+npx prisma migrate deploy
 ```
 
 ### CLI Commands
 ```bash
 # Database management via CLI
-npm run cli db merge              # ✅ Merge schemas
-npm run cli db generate           # ✅ Generate client  
-npm run cli db migrate my-feature # ✅ Create migration
-npm run cli db status             # ✅ Migration status
-npm run cli db health             # ✅ Health check
-```
-
-## Schema Content Rules
-
-### Required Fields for All Models
-```prisma
-model ExampleModel {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Optional soft delete
-  deletedAt DateTime?
-  
-  @@map("example_models")
-}
-```
-
-### Relationship Patterns
-```prisma
-// One-to-Many
-model User {
-  id    Int    @id @default(autoincrement())
-  posts Post[]
-}
-
-model Post {
-  id       Int  @id @default(autoincrement())
-  authorId Int
-  author   User @relation(fields: [authorId], references: [id])
-}
-
-// Many-to-Many (with junction table)
-model Role {
-  permissions RolePermission[]
-}
-
-model Permission {
-  roles RolePermission[]  
-}
-
-model RolePermission {
-  roleId       Int
-  permissionId Int
-  role         Role       @relation(fields: [roleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
-  
-  @@unique([roleId, permissionId])
-}
-```
-
-### Index Rules
-```prisma
-model AuditLog {
-  userId    Int?
-  action    String
-  resource  String  
-  timestamp DateTime @default(now())
-  
-  // Add indexes for query performance
-  @@index([userId])
-  @@index([action])
-  @@index([resource])
-  @@index([timestamp])
-}
-```
-
-## Repository Pattern
-
-### Interface Definition
-```typescript
-// module-name.interface.ts
-export interface UserInterface {
-  findById(id: number): Promise<User | null>;
-  findAll(): Promise<User[]>;
-  create(data: CreateUserInput): Promise<User>;
-  update(id: number, data: UpdateUserInput): Promise<User>;
-  delete(id: number): Promise<void>;
-  softDelete(id: number): Promise<void>;
-}
-```
-
-### Repository Implementation  
-```typescript
-// module-name.repository.ts
-@Injectable()
-export class UserRepository implements UserInterface {
-  constructor(private prisma: PrismaService) {}
-
-  async findById(id: number): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { id },
-    });
-  }
-
-  async softDelete(id: number): Promise<void> {
-    await this.prisma.user.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-  }
-}
-```
-
-### Service Integration
-```typescript
-// module-name.service.ts  
-@Injectable()
-export class UserService {
-  constructor(
-    private userRepository: UserRepository // Inject concrete class, not interface
-  ) {}
-
-  async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findById(id);
-    
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-    
-    return user;
-  }
-}
+npm run cli db generate              # ✅ Generate client
+npm run cli db migrate [name]        # ✅ Create/apply migrations
+npm run cli db studio                # ✅ Open Prisma Studio
+npm run cli db status                # ✅ Show migration status
+npm run cli db health                # ✅ Database health check
+npm run cli db seed                  # ✅ Seed database
 ```
 
 ## Migration Rules
@@ -250,19 +113,16 @@ export class UserService {
 
 ### Migration Process
 ```bash
-# 1. Always merge schemas first
-npm run cli db merge
-
-# 2. Create migration with descriptive name
+# 1. Create migration with descriptive name
 npm run cli db migrate add-new-feature
 
-# 3. Review generated migration
+# 2. Review generated migration
 # Check: prisma/migrations/[timestamp]_add-new-feature/
 
-# 4. Test on development database
+# 3. Test on development database
 npm run cli db status
 
-# 5. Deploy to production
+# 4. Deploy to production
 npm run cli db migrate
 ```
 
@@ -277,85 +137,200 @@ DATABASE_URL="postgresql://user:pass@localhost:5432/blog"
 DATABASE_URL="file:./dev.db"
 
 # Production (PostgreSQL recommended)
-DATABASE_URL="postgresql://user:pass@host:5432/blog_prod"
+DATABASE_URL="postgresql://user:pass@host:5432/blog"
 ```
 
-### Connection Pooling
+### Prisma Configuration
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+## Service Patterns
+
+### Service-Only Pattern (Recommended)
 ```typescript
-// For production, consider connection pooling:
-DATABASE_URL="postgresql://user:pass@host:5432/blog?connection_limit=10&pool_timeout=20"
+@Injectable()
+export class UserService {
+  constructor(private prisma: PrismaService) {}
+  
+  async findById(id: number): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+  
+  async create(data: CreateUserInput): Promise<User> {
+    // Business logic + data access in one place
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email }
+    });
+    if (existing) throw new ConflictException('Email exists');
+    
+    return this.prisma.user.create({ data });
+  }
+}
 ```
 
-## Performance Guidelines
+### Error Handling
+```typescript
+// Service error handling
+async findById(id: number): Promise<User> {
+  const user = await this.prisma.user.findUnique({ where: { id } });
+  
+  if (!user) {
+    throw new NotFoundException(`User with ID ${id} not found`);
+  }
+  
+  return user;
+}
+
+// Conflict handling
+async create(data: CreateUserInput): Promise<User> {
+  try {
+    return await this.prisma.user.create({ data });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      throw new ConflictException('Email already exists');
+    }
+    throw error;
+  }
+}
+```
+
+## Testing Patterns
+
+### Unit Testing
+```typescript
+describe('UserService', () => {
+  let service: UserService;
+  let prisma: PrismaService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        UserService,
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+            },
+          },
+        },
+      ],
+    }).compile();
+    
+    service = module.get<UserService>(UserService);
+    prisma = module.get<PrismaService>(PrismaService);
+  });
+
+  it('should create user successfully', async () => {
+    // Arrange
+    const userData = { email: 'test@example.com', name: 'Test User' };
+    const expectedUser = { id: 1, ...userData };
+    
+    jest.spyOn(prisma.user, 'create').mockResolvedValue(expectedUser);
+    
+    // Act
+    const result = await service.create(userData);
+    
+    // Assert
+    expect(result).toEqual(expectedUser);
+    expect(prisma.user.create).toHaveBeenCalledWith({ data: userData });
+  });
+});
+```
+
+### Integration Testing
+```typescript
+describe('UserService Integration', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+    
+    prisma = app.get<PrismaService>(PrismaService);
+  });
+
+  afterEach(async () => {
+    // Clean up test data
+    await prisma.user.deleteMany();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('should create and find user', async () => {
+    // Test with real database
+    const userData = { email: 'test@example.com', name: 'Test User' };
+    
+    const user = await prisma.user.create({ data: userData });
+    expect(user.email).toBe(userData.email);
+    
+    const found = await prisma.user.findUnique({ where: { id: user.id } });
+    expect(found).toEqual(user);
+  });
+});
+```
+
+## Performance Considerations
+
+### Indexing
+```prisma
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String
+  
+  @@index([email])
+  @@index([name])
+}
+```
 
 ### Query Optimization
 ```typescript
-// ✅ Use select to limit fields
-const user = await this.prisma.user.findUnique({
-  where: { id },
-  select: { id: true, name: true, email: true }
+// ✅ Efficient queries
+const users = await this.prisma.user.findMany({
+  where: { email: { contains: 'test' } },
+  select: { id: true, email: true, name: true },
+  take: 10,
+  orderBy: { createdAt: 'desc' }
 });
 
-// ✅ Use include for relations
-const userWithPosts = await this.prisma.user.findUnique({
-  where: { id },
-  include: { posts: true }
-});
-
-// ❌ Avoid N+1 queries - use include instead
+// ❌ Avoid N+1 queries
 const users = await this.prisma.user.findMany();
 for (const user of users) {
-  user.posts = await this.prisma.post.findMany({ where: { authorId: user.id } });
+  const posts = await this.prisma.post.findMany({ where: { userId: user.id } });
 }
 ```
 
 ### Pagination
 ```typescript
-// ✅ Always paginate large datasets
-async findAll(page: number = 1, limit: number = 10): Promise<User[]> {
-  return this.prisma.user.findMany({
-    take: limit,
-    skip: (page - 1) * limit,
-    orderBy: { createdAt: 'desc' }
-  });
+async findMany(page: number = 1, limit: number = 10): Promise<{ users: User[]; total: number }> {
+  const skip = (page - 1) * limit;
+  
+  const [users, total] = await Promise.all([
+    this.prisma.user.findMany({
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' }
+    }),
+    this.prisma.user.count()
+  ]);
+  
+  return { users, total };
 }
-```
-
-### Transactions
-```typescript
-// ✅ Use transactions for related operations
-async createUserWithRole(userData: CreateUserInput, roleId: number): Promise<User> {
-  return this.prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({ data: userData });
-    
-    await tx.userRole.create({
-      data: { userId: user.id, roleId }
-    });
-    
-    return user;
-  });
-}
-```
-
-## Backup & Maintenance
-
-### Regular Tasks
-```bash
-# Database health check
-npm run cli db health
-
-# Migration status  
-npm run cli db status
-
-# Clean old audit logs (90 days)
-npm run cli db clean --days 90
-```
-
-### Backup Strategy
-```bash
-# PostgreSQL backup
-pg_dump $DATABASE_URL > backup_$(date +%Y%m%d).sql
-
-# SQLite backup  
-cp prisma/dev.db backup_$(date +%Y%m%d).db
 ``` 

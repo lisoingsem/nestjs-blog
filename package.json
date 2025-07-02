@@ -5,17 +5,19 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "prisma": {
+    "schema": "prisma"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-          "start:prod": "node -r tsconfig-paths/register dist/src/main",
-      "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
-      "db": "ts-node src/cli.ts db",
-      
-      "cli": "ts-node src/cli.ts"
+    "start:prod": "node -r tsconfig-paths/register dist/src/main",
+    "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
+    "db": "ts-node src/cli.ts db",
+    "cli": "ts-node src/cli.ts"
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",
@@ -25,6 +27,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/graphql": "^13.1.0",
     "@nestjs/jwt": "^11.0.0",
+    "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/throttler": "^6.4.0",

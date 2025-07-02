@@ -1,0 +1,406 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# GraphQL Code-First Architecture Rules
+
+## Overview
+
+This project uses **NestJS GraphQL with code-first approach**. The GraphQL schema is automatically generated from TypeScript code using decorators.
+
+## 🏗️ Architecture Principles
+
+### Code-First Approach
+- **No `.graphql` files** - Schema is auto-generated from TypeScript
+- **Type safety** - Full TypeScript support with GraphQL
+- **Single source of truth** - Types and schema stay in sync
+- **Auto-generation** - Schema updates when code changes
+
+## 📁 File Structure
+
+```
+src/modules/module-name/
+├── entities/                    # GraphQL Object Types
+│   ├── module.entity.ts        # Main entity types
+│   └── index.ts               # Export all entities
+├── types/                      # GraphQL Input Types
+│   ├── module.types.ts        # Input types for mutations
+│   └── index.ts               # Export all types
+├── dto/                        # Data Transfer Objects
+│   ├── create-module.input.ts # Create DTOs
+│   ├── update-module.input.ts # Update DTOs
+│   └── index.ts               # Export all DTOs
+├── module.resolver.ts          # GraphQL resolvers
+├── module.service.ts           # Business logic
+├── module.module.ts            # NestJS module
+└── index.ts                    # Public exports
+```
+
+## 🎯 GraphQL Decorators
+
+### Object Types (Entities)
+```typescript
+// entities/user.entity.ts
+import { ObjectType, Field, Int } from '@nestjs/graphql';
+
+@ObjectType()
+export class User {
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  email: string;
+
+  @Field()
+  name: string;
+
+  @Field(() => Date)
+  createdAt: Date;
+}
+
+@ObjectType()
+export class UserResponse {
+  @Field(() => User)
+  user: User;
+
+  @Field()
+  message: string;
+}
+```
+
+### Input Types
+```typescript
+// types/user.types.ts
+import { InputType, Field } from '@nestjs/graphql';
+
+@InputType()
+export class CreateUserInput {
+  @Field()
+  email: string;
+
+  @Field()
+  password: string;
+
+  @Field()
+  name: string;
+}
+
+@InputType()
+export class UpdateUserInput {
+  @Field({ nullable: true })
+  name?: string;
+
+  @Field({ nullable: true })
+  email?: string;
+}
+```
+
+### Resolvers
+```typescript
+// user.resolver.ts
+import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { UserService } from './user.service';
+import { User, UserResponse } from './entities';
+import { CreateUserInput, UpdateUserInput } from './types';
+
+@Resolver(() => User)
+export class UserResolver {
+  constructor(private userService: UserService) {}
+
+  @Query(() => [User])
+  async users() {
+    return this.userService.findAll();
+  }
+
+  @Query(() => User, { nullable: true })
+  async user(@Args('id', { type: () => Int }) id: number) {
+    return this.userService.findById(id);
+  }
+
+  @Mutation(() => UserResponse)
+  async createUser(@Args('input') input: CreateUserInput) {
+    const user = await this.userService.create(input);
+    return { user, message: 'User created successfully' };
+  }
+
+  @Mutation(() => UserResponse)
+  async updateUser(
+    @Args('id', { type: () => Int }) id: number,
+    @Args('input') input: UpdateUserInput
+  ) {
+    const user = await this.userService.update(id, input);
+    return { user, message: 'User updated successfully' };
+  }
+}
+```
+
+## 🔧 Module Configuration
+
+### Module Setup
+```typescript
+// user.module.ts
+import { Module } from '@nestjs/common';
+import { UserResolver } from './user.resolver';
+import { UserService } from './user.service';
+import { PrismaModule } from 'shared/prisma';
+import './entities'; // Import GraphQL entities
+import './types';    // Import GraphQL types
+
+@Module({
+  imports: [PrismaModule],
+  providers: [UserResolver, UserService],
+  exports: [UserService],
+})
+export class UserModule {}
+```
+
+### Entity/Type Imports
+```typescript
+// entities/index.ts
+export * from './user.entity';
+
+// types/index.ts
+export * from './user.types';
+```
+
+## 📋 Naming Conventions
+
+### Files
+- **Entities**: `*.entity.ts` (e.g., `user.entity.ts`)
+- **Types**: `*.types.ts` (e.g., `user.types.ts`)
+- **Resolvers**: `*.resolver.ts` (e.g., `user.resolver.ts`)
+- **Services**: `*.service.ts` (e.g., `user.service.ts`)
+
+### Classes
+- **Object Types**: PascalCase (e.g., `User`, `UserResponse`)
+- **Input Types**: PascalCase + "Input" (e.g., `CreateUserInput`, `UpdateUserInput`)
+- **Resolvers**: PascalCase + "Resolver" (e.g., `UserResolver`)
+
+### Fields
+- **GraphQL Fields**: camelCase (e.g., `firstName`, `createdAt`)
+- **Database Fields**: snake_case (e.g., `first_name`, `created_at`)
+
+## 🛡️ Security Patterns
+
+### Authentication
+```typescript
+@Query(() => [User])
+@UseGuards(JwtAuthGuard)
+async users() {
+  return this.userService.findAll();
+}
+```
+
+### Authorization
+```typescript
+@Mutation(() => UserResponse)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequirePermissions('user:create')
+async createUser(@Args('input') input: CreateUserInput) {
+  return this.userService.create(input);
+}
+```
+
+### Current User
+```typescript
+@Query(() => User)
+@UseGuards(JwtAuthGuard)
+async me(@CurrentUser() user: User) {
+  return this.userService.findById(user.id);
+}
+```
+
+## 🔄 Common Patterns
+
+### Pagination
+```typescript
+@ObjectType()
+export class PaginatedUsers {
+  @Field(() => [User])
+  items: User[];
+
+  @Field(() => Int)
+  total: number;
+
+  @Field(() => Int)
+  page: number;
+
+  @Field(() => Int)
+  limit: number;
+}
+
+@Query(() => PaginatedUsers)
+async users(
+  @Args('page', { type: () => Int, defaultValue: 1 }) page: number,
+  @Args('limit', { type: () => Int, defaultValue: 10 }) limit: number
+) {
+  return this.userService.findPaginated(page, limit);
+}
+```
+
+### Error Handling
+```typescript
+@ObjectType()
+export class ErrorResponse {
+  @Field()
+  message: string;
+
+  @Field()
+  code: string;
+}
+
+@ObjectType()
+export class UserResponse {
+  @Field(() => User, { nullable: true })
+  user?: User;
+
+  @Field(() => ErrorResponse, { nullable: true })
+  error?: ErrorResponse;
+}
+```
+
+### Relations
+```typescript
+@ObjectType()
+export class User {
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  name: string;
+
+  @Field(() => [Post])
+  posts: Post[];
+}
+
+@ObjectType()
+export class Post {
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  title: string;
+
+  @Field(() => User)
+  author: User;
+}
+```
+
+## 🚀 Best Practices
+
+### 1. Always Import Entities/Types
+```typescript
+// In module file
+import './entities';
+import './types';
+```
+
+### 2. Use Proper Field Types
+```typescript
+@Field(() => Int)           // For numbers
+@Field(() => String)        // For strings
+@Field(() => Boolean)       // For booleans
+@Field(() => Date)          // For dates
+@Field(() => [User])        // For arrays
+@Field({ nullable: true })  // For optional fields
+```
+
+### 3. Separate Input Types
+```typescript
+// Don't reuse entity types as input types
+@InputType()
+export class CreateUserInput {
+  @Field()
+  email: string;
+  // Only include fields that can be set during creation
+}
+
+@ObjectType()
+export class User {
+  @Field(() => Int)
+  id: number; // This shouldn't be in input type
+  // Include all fields including computed ones
+}
+```
+
+### 4. Use Resolver Guards
+```typescript
+@Resolver(() => User)
+@UseGuards(JwtAuthGuard) // Apply to all resolver methods
+export class UserResolver {
+  // Or apply to specific methods
+  @Query(() => [User])
+  @UseGuards(PermissionGuard)
+  async users() {}
+}
+```
+
+### 5. Handle Errors Gracefully
+```typescript
+@Mutation(() => UserResponse)
+async createUser(@Args('input') input: CreateUserInput) {
+  try {
+    const user = await this.userService.create(input);
+    return { user, error: null };
+  } catch (error) {
+    return { 
+      user: null, 
+      error: { message: error.message, code: 'USER_CREATE_ERROR' }
+    };
+  }
+}
+```
+
+## 📝 Checklist for New Modules
+
+- [ ] Create `entities/` folder with `.entity.ts` files
+- [ ] Create `types/` folder with `.types.ts` files
+- [ ] Create resolver with `@Query` and `@Mutation` decorators
+- [ ] Import entities and types in module file
+- [ ] Add proper authentication/authorization guards
+- [ ] Handle errors gracefully
+- [ ] Use proper field types and decorators
+- [ ] Follow naming conventions
+- [ ] Add to main app module imports
+
+## 🎯 Quick Start Template
+
+```typescript
+// 1. Create entity
+@ObjectType()
+export class MyEntity {
+  @Field(() => Int)
+  id: number;
+  
+  @Field()
+  name: string;
+}
+
+// 2. Create input type
+@InputType()
+export class CreateMyEntityInput {
+  @Field()
+  name: string;
+}
+
+// 3. Create resolver
+@Resolver(() => MyEntity)
+export class MyEntityResolver {
+  @Query(() => [MyEntity])
+  async myEntities() {
+    return [];
+  }
+  
+  @Mutation(() => MyEntity)
+  async createMyEntity(@Args('input') input: CreateMyEntityInput) {
+    return { id: 1, name: input.name };
+  }
+}
+
+// 4. Import in module
+import './entities';
+import './types';
+```
+
+This approach ensures consistency, type safety, and maintainable GraphQL APIs! 🚀

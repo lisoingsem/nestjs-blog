@@ -1,0 +1,653 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Service Layer Rules & Patterns
+
+## 🏗️ Service Layer Overview
+
+The service layer is the **business logic layer** of the application, handling:
+- **Data access** through Prisma ORM
+- **Business rules** and validation
+- **Error handling** and exception management
+- **Audit logging** for operations
+- **Security validation** and access control
+
+## 📁 Service Structure
+
+### Standard Service Layout
+```typescript
+// module-name.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from 'shared/prisma';
+import { AuditService } from '../audit/audit.service';
+import { SecurityService } from 'shared/services/security.service';
+import { CreateModuleInput, UpdateModuleInput } from './dto';
+import { Module } from '@prisma/client';
+
+@Injectable()
+export class ModuleService {
+  private readonly logger = new Logger(ModuleService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+    private securityService: SecurityService,
+  ) {}
+
+  // CRUD operations
+  async findAll(): Promise<Module[]> { /* ... */ }
+  async findOne(id: number): Promise<Module> { /* ... */ }
+  async create(input: CreateModuleInput): Promise<Module> { /* ... */ }
+  async update(id: number, input: UpdateModuleInput): Promise<Module> { /* ... */ }
+  async remove(id: number): Promise<Module> { /* ... */ }
+
+  // Business logic methods
+  async findByEmail(email: string): Promise<Module | null> { /* ... */ }
+  async validateBusinessRule(data: any): Promise<boolean> { /* ... */ }
+}
+```
+
+## 🔧 Service Patterns
+
+### 1. **CRUD Operations Pattern**
+```typescript
+@Injectable()
+export class UserService {
+  constructor(private prisma: PrismaService) {}
+
+  async findAll(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: { deletedAt: null }
+    });
+  }
+
+  async findOne(id: number): Promise<User> {
+    const user = await this.prisma.user.findUnique({
+      where: { id, deletedAt: null }
+    });
+    
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    
+    return user;
+  }
+
+  async create(input: CreateUserInput): Promise<User> {
+    // Validation
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: input.email }
+    });
+    
+    if (existingUser) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    // Business logic
+    const hashedPassword = await bcrypt.hash(input.password, 10);
+
+    // Create
+    return this.prisma.user.create({
+      data: { ...input, password: hashedPassword }
+    });
+  }
+
+  async update(id: number, input: UpdateUserInput): Promise<User> {
+    // Check if exists
+    await this.findOne(id);
+
+    // Validation
+    if (input.email) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: input.email }
+      });
+      
+      if (existingUser && existingUser.id !== id) {
+        throw new ConflictException('Email is already taken');
+      }
+    }
+
+    // Business logic
+    if (input.password) {
+      input.password = await bcrypt.hash(input.password, 10);
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: input
+    });
+  }
+
+  async remove(id: number): Promise<User> {
+    const user = await this.findOne(id);
+    
+    // Soft delete
+    await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
+    
+    return user;
+  }
+}
+```
+
+### 2. **Authentication Service Pattern**
+```typescript
+@Injectable()
+export class AuthService {
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+  ) {}
+
+  async validateUser(email: string, password: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user && await bcrypt.compare(password, user.password)) {
+      const { password, ...result } = user;
+      return result;
+    }
+    return null;
+  }
+
+  async login(user: any) {
+    const payload = { email: user.email, sub: user.id };
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    };
+  }
+
+  async register(email: string, password: string, name: string) {
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new UnauthorizedException('User already exists');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await this.prisma.user.create({
+      data: { email, password: hashedPassword, name },
+    });
+
+    const { password: _, ...result } = user;
+    return result;
+  }
+
+  async refreshToken(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const payload = { email: user.email, sub: user.id };
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+}
+```
+
+### 3. **Audit Service Pattern**
+```typescript
+@Injectable()
+export class AuditService {
+  constructor(private prisma: PrismaService) {}
+
+  async logUserAction(
+    userId: number,
+    action: string,
+    resource: string,
+    resourceId?: string,
+    details?: any
+  ) {
+    return this.prisma.auditLog.create({
+      data: {
+        userId,
+        action,
+        resource,
+        resourceId,
+        details,
+        status: 'SUCCESS',
+      },
+    });
+  }
+
+  async logError(
+    userId: number,
+    action: string,
+    resource: string,
+    errorMessage: string,
+    details?: any
+  ) {
+    return this.prisma.auditLog.create({
+      data: {
+        userId,
+        action,
+        resource,
+        details,
+        errorMessage,
+        status: 'FAILED',
+      },
+    });
+  }
+}
+```
+
+### 4. **Security Service Pattern**
+```typescript
+@Injectable()
+export class SecurityService {
+  validateAuthentication(user: any): void {
+    if (!user) {
+      throw new UnauthorizedException('Authentication required');
+    }
+  }
+
+  canAccessResource(user: any, resourceOwnerId: number): boolean {
+    if (!user) {
+      return false;
+    }
+    return user.id === resourceOwnerId;
+  }
+
+  validateResourceAccess(user: any, resourceOwnerId: number): void {
+    this.validateAuthentication(user);
+    
+    if (!this.canAccessResource(user, resourceOwnerId)) {
+      throw new ForbiddenException('Access denied. You can only access your own resources.');
+    }
+  }
+
+  getUserId(user: any): number {
+    this.validateAuthentication(user);
+    return user.id;
+  }
+}
+```
+
+## 🔍 Error Handling Patterns
+
+### 1. **Service-Level Error Handling**
+```typescript
+async findById(id: number): Promise<User> {
+  try {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    
+    return user;
+  } catch (error) {
+    if (error instanceof NotFoundException) {
+      throw error;
+    }
+    
+    this.logger.error(`Failed to find user with ID ${id}:`, error);
+    throw new InternalServerErrorException('Failed to retrieve user');
+  }
+}
+```
+
+### 2. **Business Rule Validation**
+```typescript
+async createUser(input: CreateUserInput): Promise<User> {
+  // Validate business rules
+  await this.validateUserCreation(input);
+  
+  // Check for existing user
+  const existingUser = await this.prisma.user.findUnique({
+    where: { email: input.email }
+  });
+  
+  if (existingUser) {
+    throw new ConflictException('User with this email already exists');
+  }
+
+  // Create user
+  return this.prisma.user.create({ data: input });
+}
+
+private async validateUserCreation(input: CreateUserInput): Promise<void> {
+  // Validate email format
+  if (!this.isValidEmail(input.email)) {
+    throw new BadRequestException('Invalid email format');
+  }
+
+  // Validate password strength
+  if (!this.isValidPassword(input.password)) {
+    throw new BadRequestException('Password does not meet requirements');
+  }
+
+  // Validate name
+  if (input.name.length < 2) {
+    throw new BadRequestException('Name must be at least 2 characters long');
+  }
+}
+```
+
+### 3. **Audit-Integrated Error Handling**
+```typescript
+async createUser(input: CreateUserInput, userId?: number): Promise<User> {
+  try {
+    // Validate input
+    await this.validateUserCreation(input);
+    
+    // Check for existing user
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: input.email }
+    });
+    
+    if (existingUser) {
+      await this.auditService.logError(
+        userId,
+        'CREATE',
+        'user',
+        'User with this email already exists',
+        { email: input.email }
+      );
+      throw new ConflictException('User with this email already exists');
+    }
+
+    // Create user
+    const user = await this.prisma.user.create({ data: input });
+    
+    // Log success
+    await this.auditService.logUserAction(
+      userId,
+      'CREATE',
+      'user',
+      user.id.toString(),
+      { email: user.email }
+    );
+    
+    return user;
+  } catch (error) {
+    // Log error
+    await this.auditService.logError(
+      userId,
+      'CREATE',
+      'user',
+      error.message,
+      { email: input.email }
+    );
+    
+    throw error;
+  }
+}
+```
+
+## 🔄 Data Access Patterns
+
+### 1. **Prisma Query Patterns**
+```typescript
+// Find with conditions
+async findActiveUsers(): Promise<User[]> {
+  return this.prisma.user.findMany({
+    where: { 
+      deletedAt: null,
+      email: { not: null }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+}
+
+// Find with relations
+async findUserWithRoles(id: number): Promise<User> {
+  return this.prisma.user.findUnique({
+    where: { id },
+    include: {
+      roles: {
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Pagination
+async findUsersPaginated(page: number, limit: number): Promise<{ users: User[], total: number }> {
+  const skip = (page - 1) * limit;
+  
+  const [users, total] = await Promise.all([
+    this.prisma.user.findMany({
+      where: { deletedAt: null },
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' }
+    }),
+    this.prisma.user.count({
+      where: { deletedAt: null }
+    })
+  ]);
+  
+  return { users, total };
+}
+
+// Complex queries
+async findUsersByPermission(permission: string): Promise<User[]> {
+  return this.prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      roles: {
+        some: {
+          role: {
+            permissions: {
+              some: {
+                permission: {
+                  name: permission
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+}
+```
+
+### 2. **Transaction Patterns**
+```typescript
+async createUserWithRole(input: CreateUserInput, roleId: number): Promise<User> {
+  return this.prisma.$transaction(async (prisma) => {
+    // Create user
+    const user = await prisma.user.create({
+      data: input
+    });
+
+    // Assign role
+    await prisma.userRole.create({
+      data: {
+        userId: user.id,
+        roleId,
+        assignedBy: user.id // Self-assigned
+      }
+    });
+
+    return user;
+  });
+}
+```
+
+## 📊 Logging Patterns
+
+### 1. **Structured Logging**
+```typescript
+@Injectable()
+export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
+  async createUser(input: CreateUserInput): Promise<User> {
+    this.logger.log(`Creating user with email: ${input.email}`);
+    
+    try {
+      const user = await this.prisma.user.create({ data: input });
+      this.logger.log(`✅ User created successfully with ID: ${user.id}`);
+      return user;
+    } catch (error) {
+      this.logger.error(`❌ Failed to create user: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+}
+```
+
+### 2. **Performance Logging**
+```typescript
+async findUsersWithPerformanceLogging(): Promise<User[]> {
+  const startTime = Date.now();
+  
+  try {
+    const users = await this.prisma.user.findMany({
+      where: { deletedAt: null }
+    });
+    
+    const duration = Date.now() - startTime;
+    this.logger.log(`📊 Found ${users.length} users in ${duration}ms`);
+    
+    return users;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    this.logger.error(`❌ Failed to find users after ${duration}ms: ${error.message}`);
+    throw error;
+  }
+}
+```
+
+## 🔧 Service Dependencies
+
+### 1. **Standard Dependencies**
+```typescript
+@Injectable()
+export class UserService {
+  constructor(
+    private prisma: PrismaService,           // Database access
+    private auditService: AuditService,      // Audit logging
+    private securityService: SecurityService, // Security validation
+    private configService: ConfigService,    // Configuration access
+  ) {}
+}
+```
+
+### 2. **Module Dependencies**
+```typescript
+@Injectable()
+export class UserService {
+  constructor(
+    private prisma: PrismaService,
+    private permissionService: PermissionService, // Cross-module dependency
+    private auditService: AuditService,
+  ) {}
+}
+```
+
+## 📋 Service Checklist
+
+### CRUD Operations
+- [ ] `findAll()` - Get all records with proper filtering
+- [ ] `findOne(id)` - Get single record with error handling
+- [ ] `create(input)` - Create with validation and business rules
+- [ ] `update(id, input)` - Update with validation and error handling
+- [ ] `remove(id)` - Soft delete with proper cleanup
+
+### Business Logic
+- [ ] Input validation and sanitization
+- [ ] Business rule enforcement
+- [ ] Error handling with proper exceptions
+- [ ] Audit logging for all operations
+- [ ] Security validation where needed
+
+### Data Access
+- [ ] Proper Prisma query patterns
+- [ ] Efficient database queries
+- [ ] Transaction handling for complex operations
+- [ ] Proper error handling for database operations
+
+### Logging & Monitoring
+- [ ] Structured logging with context
+- [ ] Performance monitoring
+- [ ] Error tracking and reporting
+- [ ] Audit trail maintenance
+
+## 🚀 Best Practices
+
+### 1. **Single Responsibility**
+```typescript
+// Good: Each service has a clear purpose
+@Injectable()
+export class UserService {
+  // Only user-related operations
+}
+
+@Injectable()
+export class AuthService {
+  // Only authentication operations
+}
+```
+
+### 2. **Dependency Injection**
+```typescript
+// Good: Use constructor injection
+constructor(
+  private prisma: PrismaService,
+  private auditService: AuditService,
+) {}
+
+// Bad: Don't create instances manually
+private prisma = new PrismaService();
+```
+
+### 3. **Error Handling**
+```typescript
+// Good: Proper exception types
+if (!user) {
+  throw new NotFoundException(`User with ID ${id} not found`);
+}
+
+// Bad: Generic errors
+if (!user) {
+  throw new Error('User not found');
+}
+```
+
+### 4. **Validation**
+```typescript
+// Good: Validate before processing
+async createUser(input: CreateUserInput): Promise<User> {
+  await this.validateUserCreation(input);
+  return this.prisma.user.create({ data: input });
+}
+
+// Bad: No validation
+async createUser(input: CreateUserInput): Promise<User> {
+  return this.prisma.user.create({ data: input });
+}
+```
+
+### 5. **Audit Logging**
+```typescript
+// Good: Log all important operations
+async createUser(input: CreateUserInput): Promise<User> {
+  const user = await this.prisma.user.create({ data: input });
+  await this.auditService.logUserAction(user.id, 'CREATE', 'user');
+  return user;
+}
+```
+
+This service layer approach ensures maintainable, testable, and secure business logic! 🚀

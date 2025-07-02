@@ -1,0 +1,531 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Security Rules & Patterns
+
+## 🛡️ Security Overview
+
+This project implements a **security-first approach** with multiple layers of protection:
+- **JWT Authentication** - Token-based authentication
+- **Role-Based Access Control (RBAC)** - Permission-based authorization
+- **Input Validation** - GraphQL and DTO validation
+- **Audit Logging** - Comprehensive operation tracking
+- **Rate Limiting** - Protection against abuse
+- **Security Headers** - Helmet.js protection
+
+## 🔐 Authentication System
+
+### JWT Strategy
+```typescript
+// auth/jwt.strategy.ts
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(private configService: ConfigService) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: configService.get<string>('jwt.secret'),
+    });
+  }
+
+  async validate(payload: any) {
+    return { id: payload.sub, email: payload.email };
+  }
+}
+```
+
+### JWT Guard
+```typescript
+// shared/guards/jwt.guard.ts
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private reflector: Reflector) {
+    super();
+  }
+
+  canActivate(context: ExecutionContext) {
+    // Check if route is marked as public
+    const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
+    return super.canActivate(context);
+  }
+
+  handleRequest(err: any, user: any, info: any) {
+    if (err || !user) {
+      throw err || new UnauthorizedException('Authentication required');
+    }
+    return user;
+  }
+}
+```
+
+### Authentication Decorators
+```typescript
+// shared/decorators/auth.decorator.ts
+export function JwtAuthGuard() {
+  return UseGuards(JwtAuthGuardClass);
+}
+
+// shared/decorators/user.decorator.ts
+export const CurrentUser = createParamDecorator(
+  (data: unknown, context: ExecutionContext) => {
+    const ctx = GqlExecutionContext.create(context);
+    return ctx.getContext().req.user;
+  },
+);
+```
+
+## 🔑 Authorization System
+
+### Permission Guard
+```typescript
+// permissions/permission.guard.ts
+@Injectable()
+export class PermissionGuard implements CanActivate {
+  constructor(
+    private reflector: Reflector,
+    private permissionService: PermissionService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+      'permissions',
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (!requiredPermissions) {
+      return true;
+    }
+
+    const user = this.getUser(context);
+    return this.permissionService.hasPermissions(user, requiredPermissions);
+  }
+}
+```
+
+### Permission Decorator
+```typescript
+// shared/decorators/permission.decorator.ts
+export const RequirePermissions = (...permissions: string[]) =>
+  SetMetadata('permissions', permissions);
+```
+
+### Security Service
+```typescript
+// shared/services/security.service.ts
+@Injectable()
+export class SecurityService {
+  validateAuthentication(user: any): void {
+    if (!user) {
+      throw new UnauthorizedException('Authentication required');
+    }
+  }
+
+  canAccessResource(user: any, resourceOwnerId: number): boolean {
+    if (!user) {
+      return false;
+    }
+    return user.id === resourceOwnerId;
+  }
+
+  validateResourceAccess(user: any, resourceOwnerId: number): void {
+    this.validateAuthentication(user);
+    
+    if (!this.canAccessResource(user, resourceOwnerId)) {
+      throw new ForbiddenException('Access denied. You can only access your own resources.');
+    }
+  }
+
+  getUserId(user: any): number {
+    this.validateAuthentication(user);
+    return user.id;
+  }
+}
+```
+
+## 🛡️ Security Patterns
+
+### 1. **Route Protection**
+```typescript
+// Protect entire resolver
+@Resolver(() => User)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+export class UserResolver {
+  // All methods require authentication and permissions
+}
+
+// Protect specific methods
+@Query(() => [User])
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequirePermissions('user:read')
+async users() {
+  return this.userService.findAll();
+}
+
+@Mutation(() => UserResponse)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequirePermissions('user:create')
+async createUser(@Args('input') input: CreateUserInput) {
+  return this.userService.create(input);
+}
+```
+
+### 2. **Resource-Level Protection**
+```typescript
+@Mutation(() => UserResponse)
+@UseGuards(JwtAuthGuard)
+async updateUser(
+  @CurrentUser() user: User,
+  @Args('id', { type: () => Int }) id: number,
+  @Args('input') input: UpdateUserInput
+) {
+  // Check if user can access this resource
+  this.securityService.validateResourceAccess(user, id);
+  
+  return this.userService.update(id, input);
+}
+```
+
+### 3. **Public Routes**
+```typescript
+@Query(() => String)
+@Public() // Custom decorator to mark as public
+async health() {
+  return 'OK';
+}
+
+@Mutation(() => LoginResponse)
+@Public()
+async login(@Args('input') input: LoginInput) {
+  return this.authService.login(input);
+}
+```
+
+### 4. **Password Security**
+```typescript
+// Password hashing
+const hashedPassword = await bcrypt.hash(password, 10);
+
+// Password validation
+const isValid = await bcrypt.compare(password, hashedPassword);
+
+// Password policy validation
+validatePassword(password: string): boolean {
+  const minLength = 8;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  return password.length >= minLength && 
+         hasUppercase && 
+         hasLowercase && 
+         hasNumbers && 
+         hasSpecialChars;
+}
+```
+
+## 📊 Configuration Security
+
+### JWT Configuration
+```typescript
+// config/jwt.config.ts
+export default registerAs('jwt', () => ({
+  secret: process.env.JWT_SECRET || 'fallback-secret-change-in-production',
+  expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+}));
+```
+
+### Security Configuration
+```typescript
+// config/security.config.ts
+export default () => ({
+  security: {
+    jwt: {
+      secret: process.env.JWT_SECRET || 'fallback-secret-change-in-production',
+      expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+      refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    },
+    
+    throttling: {
+      ttl: parseInt(process.env.THROTTLE_TTL || '60000'),
+      limit: parseInt(process.env.THROTTLE_LIMIT || '10'),
+    },
+    
+    password: {
+      minLength: 8,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumbers: true,
+      requireSpecialChars: true,
+    },
+  },
+});
+```
+
+### Environment Variables
+```bash
+# Required environment variables
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_EXPIRES_IN=7d
+DATABASE_URL=postgresql://user:password@localhost:5432/blog
+THROTTLE_TTL=60000
+THROTTLE_LIMIT=10
+```
+
+## 🔍 Audit Logging
+
+### Audit Service
+```typescript
+// audit/audit.service.ts
+@Injectable()
+export class AuditService {
+  constructor(private prisma: PrismaService) {}
+
+  async logUserAction(
+    userId: number,
+    action: string,
+    resource: string,
+    resourceId?: string,
+    details?: any
+  ) {
+    return this.prisma.auditLog.create({
+      data: {
+        userId,
+        action,
+        resource,
+        resourceId,
+        details,
+        status: 'SUCCESS',
+      },
+    });
+  }
+
+  async logError(
+    userId: number,
+    action: string,
+    resource: string,
+    errorMessage: string,
+    details?: any
+  ) {
+    return this.prisma.auditLog.create({
+      data: {
+        userId,
+        action,
+        resource,
+        details,
+        errorMessage,
+        status: 'FAILED',
+      },
+    });
+  }
+}
+```
+
+### Audit Usage
+```typescript
+// In services
+async createUser(input: CreateUserInput): Promise<User> {
+  try {
+    const user = await this.prisma.user.create({ data: input });
+    
+    // Log successful operation
+    await this.auditService.logUserAction(
+      user.id,
+      'CREATE',
+      'user',
+      user.id.toString(),
+      { email: user.email }
+    );
+    
+    return user;
+  } catch (error) {
+    // Log failed operation
+    await this.auditService.logError(
+      null,
+      'CREATE',
+      'user',
+      error.message,
+      { email: input.email }
+    );
+    
+    throw error;
+  }
+}
+```
+
+## 🚫 Rate Limiting
+
+### Throttler Configuration
+```typescript
+// app.module.ts
+ThrottlerModule.forRootAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => [
+    {
+      ttl: configService.get('security.throttling.ttl') || 60000,
+      limit: configService.get('security.throttling.limit') || 10,
+    },
+  ],
+}),
+```
+
+### Rate Limiting Usage
+```typescript
+// Apply to specific routes
+@UseGuards(ThrottlerGuard)
+@Throttle(5, 60) // 5 requests per minute
+@Query(() => [User])
+async users() {
+  return this.userService.findAll();
+}
+```
+
+## 🔒 Input Validation
+
+### GraphQL Input Types
+```typescript
+@InputType()
+export class CreateUserInput {
+  @Field()
+  @IsEmail()
+  email: string;
+
+  @Field()
+  @MinLength(8)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: 'Password must contain uppercase, lowercase, number and special character',
+  })
+  password: string;
+
+  @Field()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  name: string;
+}
+```
+
+### Validation Pipes
+```typescript
+// Global validation pipe
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  })
+);
+```
+
+## 🛡️ Security Headers
+
+### Helmet Configuration
+```typescript
+// main.ts
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Disable for GraphQL Playground
+  }),
+);
+```
+
+## 📋 Security Checklist
+
+### Authentication
+- [ ] JWT tokens with secure secrets
+- [ ] Token expiration and refresh
+- [ ] Public route marking
+- [ ] Authentication guards on protected routes
+
+### Authorization
+- [ ] Role-based access control
+- [ ] Permission-based authorization
+- [ ] Resource-level access control
+- [ ] Permission decorators on routes
+
+### Input Validation
+- [ ] GraphQL input type validation
+- [ ] DTO validation with class-validator
+- [ ] SQL injection prevention (Prisma)
+- [ ] XSS protection
+
+### Data Protection
+- [ ] Password hashing with bcrypt
+- [ ] Sensitive data encryption
+- [ ] Soft deletes for data integrity
+- [ ] Audit logging for all operations
+
+### Infrastructure Security
+- [ ] Environment variable protection
+- [ ] Rate limiting
+- [ ] Security headers (Helmet)
+- [ ] HTTPS in production
+
+### Monitoring
+- [ ] Audit logging
+- [ ] Error tracking
+- [ ] Security event monitoring
+- [ ] Regular security audits
+
+## 🚨 Security Best Practices
+
+### 1. **Never Trust User Input**
+```typescript
+// Always validate and sanitize
+const sanitizedInput = this.sanitizeInput(userInput);
+```
+
+### 2. **Use Environment Variables**
+```typescript
+// Never hardcode secrets
+const secret = process.env.JWT_SECRET;
+```
+
+### 3. **Implement Proper Error Handling**
+```typescript
+// Don't expose internal errors
+catch (error) {
+  this.logger.error('Internal error', error);
+  throw new InternalServerErrorException('Something went wrong');
+}
+```
+
+### 4. **Log Security Events**
+```typescript
+// Log all authentication attempts
+await this.auditService.logUserAction(userId, 'LOGIN', 'auth');
+```
+
+### 5. **Use HTTPS in Production**
+```typescript
+// Force HTTPS
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true }));
+}
+```
+
+### 6. **Regular Security Updates**
+- Keep dependencies updated
+- Monitor security advisories
+- Regular penetration testing
+- Security code reviews
+
+This security-first approach ensures your application is protected at multiple levels! 🛡️

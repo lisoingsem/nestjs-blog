@@ -5,7 +5,7 @@ import { CliModule } from './cli/cli.module';
 
 async function bootstrap() {
   await CommandFactory.run(CliModule, {
-    logger: false, // Disable NestJS startup logging
+    logger: false,
     errorHandler: (error) => {
       // Don't treat help output as an error
       if (error.message.includes('outputHelp') || error.message.includes('help')) {

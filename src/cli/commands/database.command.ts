@@ -237,7 +237,10 @@ export class DatabaseCommand extends CommandRunner {
   private async health(): Promise<void> {
     try {
       console.log('🏥 Running health check...');
-      execSync('npx prisma db execute --stdin <<< "SELECT 1"', { stdio: 'pipe' });
+      execSync('npx prisma db execute --schema prisma/schema.prisma --stdin', { 
+        stdio: 'pipe',
+        input: 'SELECT 1'
+      });
       console.log('✅ Database connection is healthy');
     } catch (error) {
       console.error('❌ Health check failed (DATABASE_URL required)');

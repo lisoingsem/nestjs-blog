@@ -6,9 +6,9 @@ import { AuthService } from './auth.service';
 import { AuthResolver } from './auth.resolver';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaModule } from 'shared/prisma';
-import { JwtAuthGuard } from 'shared/guards';
-import './entities'; // Import GraphQL entities
-import './types'; // Import GraphQL types
+import { JwtAuthGuard } from './auth.guard';
+import './entities';
+import './types';
 
 @Module({
   imports: [

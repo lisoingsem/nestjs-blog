@@ -11,7 +11,16 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ 
+      where: { email },
+      include: {
+        roles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    });
     if (user && await bcrypt.compare(password, user.password)) {
       const { password, ...result } = user;
       return result;
@@ -46,8 +55,7 @@ export class AuthService {
       },
     });
 
-    const { password: _, ...result } = user;
-    return result;
+    return user;
   }
 
   async refreshToken(userId: number) {

@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function seedPermissions() {
   // 1. Create default permissions
   const defaultPermissions = [
     { name: 'Create User', description: 'Can create new users', resource: 'user', action: 'create' },
@@ -19,7 +19,7 @@ async function main() {
       where: { resource_action: { resource: permission.resource, action: permission.action } },
       update: {},
       create: permission,
-    });defaultPermissions
+    });
   }
 
   // 2. Create default roles
@@ -96,13 +96,4 @@ async function main() {
   });
 
   console.log('✅ Seeded permissions and roles');
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  }); 
+} 

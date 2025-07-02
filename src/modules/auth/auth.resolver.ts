@@ -1,10 +1,9 @@
 import { Resolver, Mutation, Query, Args, Context } from '@nestjs/graphql';
 import { AuthService } from './auth.service';
-import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from 'shared/guards';
+import { UnauthorizedException, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from './auth.guard';
+import { LoginInput, RegisterInput } from './dto';
 import { LoginResponse, RegisterResponse, RefreshTokenResponse } from './entities';
-import { LoginInput, RegisterInput } from './types/auth.types';
-import { UnauthorizedException } from '@nestjs/common';
 
 @Resolver()
 export class AuthResolver {
@@ -18,9 +17,11 @@ export class AuthResolver {
   @Mutation(() => LoginResponse)
   async login(@Args('input') input: LoginInput) {
     const user = await this.authService.validateUser(input.email, input.password);
+
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
     return this.authService.login(user);
   }
 

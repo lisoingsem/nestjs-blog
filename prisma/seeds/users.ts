@@ -3,67 +3,60 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  // 1. Hash passwords
-  const passwordHash = await bcrypt.hash('password', 10);
+export async function seedUsers() {
+  // Create test users
+  const passwordHash = await bcrypt.hash('password123', 10);
 
-  // 2. Create users
-  const lisoing = await prisma.user.upsert({
-    where: { email: 'lisoingsem@gmail.com' },
-    update: {},
-    create: {
-      name: 'lisoing sem',
-      email: 'lisoingsem@gmail.com',
-      password: passwordHash,
-    },
-  });
-
-  const genrate = await prisma.user.upsert({
-    where: { email: 'genrate@gmail.com' },
-    update: {},
-    create: {
-      name: 'genrate',
-      email: 'genrate@gmail.com',
-      password: passwordHash,
-    },
-  });
-
-  // 3. Assign roles
+  // Find roles
   const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
   const userRole = await prisma.role.findUnique({ where: { name: 'user' } });
 
-  if (adminRole) {
-    await prisma.userRole.upsert({
-      where: { userId_roleId: { userId: lisoing.id, roleId: adminRole.id } },
-      update: {},
-      create: {
-        userId: lisoing.id,
-        roleId: adminRole.id,
-        assignedBy: lisoing.id,
-      },
-    });
+  if (!adminRole || !userRole) {
+    throw new Error('Required roles not found. Run permissions seeder first.');
   }
 
-  if (userRole) {
-    await prisma.userRole.upsert({
-      where: { userId_roleId: { userId: genrate.id, roleId: userRole.id } },
-      update: {},
-      create: {
-        userId: genrate.id,
-        roleId: userRole.id,
-        assignedBy: lisoing.id,
-      },
-    });
-  }
+  // Upsert admin user
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {},
+    create: {
+      email: 'admin@example.com',
+      name: 'Admin User',
+      password: passwordHash,
+    },
+  });
 
-  console.log('✅ Seeded test users and assigned roles');
-}
+  // Upsert regular user
+  const regularUser = await prisma.user.upsert({
+    where: { email: 'user@example.com' },
+    update: {},
+    create: {
+      email: 'user@example.com',
+      name: 'Regular User',
+      password: passwordHash,
+    },
+  });
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  }); 
+  // Assign roles to users
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: adminUser.id, roleId: adminRole.id } },
+    update: {},
+    create: {
+      userId: adminUser.id,
+      roleId: adminRole.id,
+      assignedBy: adminUser.id, // Admin assigns role to themselves
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: regularUser.id, roleId: userRole.id } },
+    update: {},
+    create: {
+      userId: regularUser.id,
+      roleId: userRole.id,
+      assignedBy: adminUser.id, // Admin assigns role to regular user
+    },
+  });
+
+  console.log('✅ Seeded users');
+} 

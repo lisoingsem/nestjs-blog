@@ -1,14 +1,15 @@
+import { seedPermissions } from './permissions';
+import { seedUsers } from './users';
+
 async function main() {
-  await import('./permissions');
-  await import('./users');
+  console.log('🌱 Starting ordered seeding...');
+  await seedPermissions();
+  await seedUsers();
+  console.log('✅ All seeders executed (via index.ts)');
+  process.exit(0);
 }
 
-main()
-  .then(() => {
-    console.log('✅ All seeders executed (via index.ts)');
-    process.exit(0);
-  })
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  }); 
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+}); 

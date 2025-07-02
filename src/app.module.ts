@@ -8,7 +8,7 @@ import { PrismaModule } from 'shared/prisma';
 import { SecurityService } from 'shared/services/security.service';
 import databaseConfig from '@config/database.config';
 import jwtConfig from '@config/jwt.config';
-import securityConfig from '@config/security.config';
+import securityConfig from '@config/security.config'; 
 
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/users/user.module';
@@ -19,17 +19,24 @@ import { ProfileModule } from './modules/profile/profile.module';
 
 @Module({
   imports: [
+    // Config
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig, jwtConfig, securityConfig],
     }),
+
+    // Prisma
     PrismaModule,
+
+    // Modules
     AuthModule,
     UserModule,
     PermissionModule,
     AuditModule,
     ContactModule,
     ProfileModule,
+
+    // Throttler
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -40,12 +47,15 @@ import { ProfileModule } from './modules/profile/profile.module';
         },
       ],
     }),
+
+    // GraphQL
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
       playground: true,
       introspection: true,
+      context: ({ req, res }) => ({ req, res }),
     }),
   ],
   providers: [SecurityService],

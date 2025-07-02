@@ -10,7 +10,7 @@ export class UserService {
     private prisma: PrismaService
   ) {}
 
-  async findAll(): Promise<User[]> {
+  async findAllUsers(): Promise<User[]> {
     return this.prisma.user.findMany({
       where: { deletedAt: null }
     });
@@ -29,7 +29,6 @@ export class UserService {
   }
 
   async create(createUserInput: CreateUserInput): Promise<User> {
-    // Check if user already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: createUserInput.email }
     });
@@ -37,11 +36,7 @@ export class UserService {
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
     }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(createUserInput.password, 10);
-
-    // Create user
     return this.prisma.user.create({
       data: {
         ...createUserInput,
@@ -51,10 +46,8 @@ export class UserService {
   }
 
   async update(id: number, updateUserInput: UpdateUserInput): Promise<User> {
-    // Check if user exists
     await this.findOne(id);
 
-    // Check if email is already taken by another user
     if (updateUserInput.email) {
       const existingUser = await this.prisma.user.findUnique({
         where: { email: updateUserInput.email }
@@ -79,7 +72,6 @@ export class UserService {
   async remove(id: number): Promise<User> {
     const user = await this.findOne(id);
     
-    // Soft delete
     await this.prisma.user.update({
       where: { id },
       data: { deletedAt: new Date() }

@@ -8,7 +8,6 @@ import { JwtStrategy } from './jwt.strategy';
 import { PrismaModule } from 'shared/prisma';
 import { JwtAuthGuard } from './auth.guard';
 import './entities';
-import './types';
 
 @Module({
   imports: [

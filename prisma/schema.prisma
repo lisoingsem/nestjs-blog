@@ -1,120 +1,357 @@
-// Auto-generated schema from modular files
-// Last updated: 2025-07-01T17:18:43.315Z
-// Merged modules: all core modules
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+model Associate {
+  id                   String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                 String?              @db.VarChar
+  prefix               String?              @db.VarChar
+  image                String?              @db.VarChar
+  sequence             Int?                 @default(0)
+  type                 String?              @db.VarChar
+  created_at           DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?            @default(now()) @db.Timestamp(6)
+  profile_associations ProfileAssociation[] @relation("AssociateToProfileAssociation")
+  statistics           Statistic[]
 
-  // Relations
-  roles         UserRole[]
-  auditLogs     AuditLog[]
-  assignedRoles UserRole[] @relation("AssignedBy")
+  @@map("associates")
+}
+
+model BackgroundTemplate {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String?   @db.VarChar
+  image_url   String    @db.VarChar
+  description String?   @db.VarChar
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+
+  @@map("background_template")
+}
+
+model Community {
+  id                  String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                String?            @db.VarChar
+  image_url           String?            @db.VarChar
+  website             String?            @db.VarChar
+  description         String?            @db.VarChar
+  sequence            Int?               @default(0)
+  status              status?            @default(active)
+  created_at          DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at          DateTime?          @default(now()) @db.Timestamp(6)
+  profile_communities ProfileCommunity[]
+
+  @@map("communities")
+}
+
+model Contact {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id        String    @db.Uuid
+  connector_id      String    @db.Uuid
+  favourite         Boolean?  @default(false)
+  pin               Int?
+  remark            String?
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+  connector_profile Profile   @relation("contacts_connector_idToprofiles", fields: [connector_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  profile           Profile   @relation("contacts_profile_idToprofiles", fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([profile_id, connector_id], map: "unique_profile_id_connector_id")
+  @@map("contacts")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Feedback {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id  String    @db.Uuid
+  type        String?   @default("feedback") @db.VarChar(50)
+  title       String?   @db.VarChar(255)
+  description String?
+  status      String?   @default("active") @db.VarChar(50)
+  remark      String?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  profile     Profile   @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("feedback")
+}
+
+model FlywaySchemaHistory {
+  installed_rank Int      @id(map: "flyway_schema_history_pk")
+  version        String?  @db.VarChar(50)
+  description    String   @db.VarChar(200)
+  type           String   @db.VarChar(20)
+  script         String   @db.VarChar(1000)
+  checksum       Int?
+  installed_by   String   @db.VarChar(100)
+  installed_on   DateTime @default(now()) @db.Timestamp(6)
+  execution_time Int
+  success        Boolean
+
+  @@index([success], map: "flyway_schema_history_s_idx")
+  @@map("flyway_schema_history")
+}
+
+model Link {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name          String?       @db.VarChar
+  prefix        String?       @db.VarChar
+  description   String?       @db.VarChar
+  custom_logo   String?       @db.VarChar
+  native_logo   String?       @db.VarChar
+  sequence      Int?          @default(0)
+  status        status?       @default(active)
+  created_at    DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?     @default(now()) @db.Timestamp(6)
+  profile_links ProfileLink[]
+
+  @@map("links")
+}
+
+model ProfileAssociation {
+  id            String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id    String?    @db.Uuid
+  associated_id String?    @db.Uuid
+  label         String?    @db.VarChar
+  sequence      Int?       @default(0)
+  created_at    DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?  @default(now()) @db.Timestamp(6)
+  associate     Associate? @relation("AssociateToProfileAssociation", fields: [associated_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  profile       Profile?   @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_associations")
+}
+
+model ProfileColor {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id       String?   @db.Uuid
+  primary_color    String?   @db.VarChar
+  secondary_color  String?   @db.VarChar
+  text_color       String?   @db.VarChar
+  background_color String?   @db.VarChar
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+  profile          Profile?  @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_colors")
+}
+
+model ProfileCommunity {
+  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id   String?    @db.Uuid
+  community_id String?    @db.Uuid
+  sequence     Int?       @default(0)
+  created_at   DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at   DateTime?  @default(now()) @db.Timestamp(6)
+  community    Community? @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  profile      Profile?   @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_communities")
+}
+
+model ProfileConfig {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id  String?   @db.Uuid
+  name        String?   @db.VarChar
+  config_code String?   @db.VarChar
+  value       String?   @db.VarChar
+  description String?   @db.VarChar
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  profile     Profile?  @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_config")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ProfileLink {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id String?   @db.Uuid
+  link_id    String?   @db.Uuid
+  label      String?   @db.VarChar
+  value      String?   @db.VarChar
+  sequence   Int?      @default(0)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  type       String?   @default("default") @db.VarChar(50)
+  link_url   String?   @db.VarChar(250)
+  link       Link?     @relation(fields: [link_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  profile    Profile?  @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_links")
+}
+
+model ProfileMedia {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id String?   @db.Uuid
+  image      String?   @db.VarChar
+  type       String?   @db.VarChar
+  sequence   Int?      @default(0)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  profile    Profile?  @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_medias")
+}
+
+model ProfileStatistic {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id  String?   @db.Uuid
+  device_id   String?   @db.VarChar
+  platform    String?   @db.VarChar
+  entity_id   String?   @db.Uuid
+  entity_name String?   @db.VarChar
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  profile     Profile?  @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("profile_statistics")
+}
+
+model ProfileVisit {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id String    @db.Uuid
+  device_id  String?   @db.VarChar(255)
+  platform   String?   @db.VarChar(100)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  profile    Profile   @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([profile_id], map: "idx_profile_visits_profile_id")
+  @@map("profile_visits")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Profile {
+  id                    String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id               String?              @db.Uuid
+  username              String?              @db.VarChar
+  name                  String?              @db.VarChar
+  about                 String?              @db.VarChar
+  title                 String?              @db.VarChar
+  dob                   DateTime?            @db.Date
+  position              String?              @db.VarChar
+  cover_image           String?              @db.VarChar
+  profile_image         String?              @db.VarChar
+  background_image      String?              @db.VarChar
+  theme                 Int?                 @default(1)
+  tier                  plan?                @default(free)
+  status                status?              @default(active)
+  created_at            DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at            DateTime?            @default(now()) @db.Timestamp(6)
+  use_native_icon       Boolean?             @default(true)
+  header_style          String?              @default("default") @db.VarChar(50)
+  ai_credit             Int?                 @default(20)
+  deactivate            Boolean?             @default(false)
+  link_config           Json?                @db.Json
+  qrcode_config         Json?                @db.Json
+  qrcode_url            String?              @db.VarChar
+  contacts_as_connector Contact[]            @relation("contacts_connector_idToprofiles")
+  contacts_as_profile   Contact[]            @relation("contacts_profile_idToprofiles")
+  feedbacks             Feedback[]
+  profile_associations  ProfileAssociation[]
+  profile_colors        ProfileColor[]
+  profile_communities   ProfileCommunity[]
+  profile_configs       ProfileConfig[]
+  profile_links         ProfileLink[]
+  profile_medias        ProfileMedia[]
+  profile_statistics    ProfileStatistic[]
+  profile_visits        ProfileVisit[]
+  user                  User?                @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  statistics            Statistic[]
+  transaction_logs      TransactionLog[]
+
+  @@map("profiles")
+}
+
+model Statistic {
+  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id   String?    @db.Uuid
+  associate_id String?    @db.Uuid
+  counting     Int?       @default(0)
+  created_at   DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at   DateTime?  @default(now()) @db.Timestamp(6)
+  associate    Associate? @relation(fields: [associate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  profile      Profile?   @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("statistics")
+}
+
+model TempUser {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id     String?   @db.Uuid
+  verify_type String?   @db.VarChar
+  verify_code String?   @db.VarChar
+  verified_at DateTime? @db.Timestamp(6)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  user        User?     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("temp_users")
+}
+
+model TransactionLog {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id   String    @db.Uuid
+  device_id    String?   @db.VarChar(50)
+  platform     String?   @db.VarChar(50)
+  status       String?   @db.VarChar(20)
+  type         String?   @db.VarChar(20)
+  remark       String?   @db.VarChar
+  amount       Int?
+  total_amount Int?
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  updated_at   DateTime? @default(now()) @db.Timestamp(6)
+  profile      Profile   @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("transaction_logs")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model User {
+  id               String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  username         String?    @db.VarChar
+  password         String?    @db.VarChar
+  email            String?    @db.VarChar
+  phone_number     String?    @db.VarChar
+  social_id        String?    @db.VarChar
+  social_token     String?    @db.VarChar
+  login_type       String?    @db.VarChar
+  last_login       DateTime?  @db.Timestamp(6)
+  role             role?      @default(user)
+  status           status?    @default(active)
+  verified_at      DateTime?  @db.Timestamp(6)
+  new_password     Int?       @default(0)
+  created_at       DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?  @default(now()) @db.Timestamp(6)
+  count_resend_otp Int?       @default(0)
+  created_by       String?    @default("auto") @db.VarChar(50)
+  profiles         Profile[]
+  temp_users       TempUser[]
 
   @@map("users")
 }
 
-model Permission {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String
-  resource    String
-  action      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  roles RolePermission[]
-
-  @@unique([resource, action])
-  @@map("permissions")
+enum plan {
+  free
+  paid
+  custom
 }
 
-model Role {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  permissions RolePermission[]
-  users       UserRole[]
-
-  @@map("roles")
+enum role {
+  public
+  user
+  custom
+  admin
 }
 
-model RolePermission {
-  id           Int        @id @default(autoincrement())
-  roleId       Int
-  permissionId Int
-  createdAt    DateTime   @default(now())
-
-  // Relations
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-  @@map("role_permissions")
-}
-
-model UserRole {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  roleId     Int
-  assignedAt DateTime @default(now())
-  assignedBy Int
-
-  // Relations
-  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  assigner User @relation("AssignedBy", fields: [assignedBy], references: [id])
-
-  @@unique([userId, roleId])
-  @@map("user_roles")
-}
-
-model AuditLog {
-  id           Int          @id @default(autoincrement())
-  userId       Int?
-  action       String
-  resource     String
-  resourceId   String?
-  details      Json?
-  metadata     Json?
-  ipAddress    String?
-  userAgent    String?
-  timestamp    DateTime     @default(now())
-  status       AuditStatus  @default(SUCCESS)
-  errorMessage String?
-
-  // Relations
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([action])
-  @@index([resource])
-  @@index([timestamp])
-  @@index([status])
-  @@map("audit_logs")
-}
-
-enum AuditStatus {
-  SUCCESS
-  FAILED
-  PENDING
+enum status {
+  active
+  inactive
+  banned
 }

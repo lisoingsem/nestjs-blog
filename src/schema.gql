@@ -2,6 +2,70 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input ChangePasswordInput {
+  newPassword: String!
+  oldPassword: String!
+  userId: String!
+}
+
+input CreateContactInput {
+  profileId: String!
+  remark: String
+  username: String!
+}
+
+input CreateUsernameInput {
+  userId: String!
+  username: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+input GenerateBioByAIInput {
+  deviceId: String
+  length: String
+  platform: String
+  profileId: String!
+  rawBio: String!
+  regenerate: Boolean
+  type: String
+}
+
+input GenerateColorCodeFromImageInput {
+  deviceId: String!
+  platform: String!
+  profileId: String!
+}
+
+input GetContactListInput {
+  limit: Int!
+  offset: Int!
+  orderBy: String
+  profileId: String!
+  searchName: String
+}
+
+input HandleAppleAuthInput {
+  appleToken: String!
+}
+
+input HandleGoogleAuthInput {
+  googleToken: String!
+}
+
+input HandleTelegramAuthInput {
+  auth_date: String!
+  first_name: String
+  hash: String!
+  id: String!
+  last_name: String
+  photo_url: String
+  username: String
+}
+
 input LoginInput {
   email: String!
   password: String!
@@ -12,16 +76,62 @@ type LoginResponse {
   user: UserResponse!
 }
 
+input LoginWithPhoneInput {
+  password: String!
+  phoneNumber: String!
+}
+
 type Mutation {
-  login(input: LoginInput!): LoginResponse!
+  adminLogin(input: LoginInput!): LoginResponse!
+  adminRegister(input: RegisterInput!): LoginResponse!
+  changePassword(input: ChangePasswordInput!): String!
+  checkForExistingUser(phoneNumber: String!): String!
+  createNewContact(input: CreateContactInput!): String!
+  createUserManually(phoneNumber: String!): String!
+  createUsername(input: CreateUsernameInput!): String!
+  generateBioByAI(input: GenerateBioByAIInput!): String!
+  generateColorCodeFromImage(input: GenerateColorCodeFromImageInput!): String!
+  getMyContactList(input: GetContactListInput!): String!
+  handleAppleAuth(input: HandleAppleAuthInput!): String!
+  handleGoogleAuth(input: HandleGoogleAuthInput!): String!
+  handleTelegramAuth(input: HandleTelegramAuthInput!): String!
+  insertProfileStatisticCommunity(deviceId: String!, platform: String!, profileCommunityId: String!, profileId: String!): String!
+  insertProfileStatisticLink(deviceId: String!, platform: String!, profileId: String!, profileLinkId: String!): String!
+  insertProfileStatisticMedia(deviceId: String!, platform: String!, profileId: String!, profileMediaId: String!): String!
+  login(email: String!, password: String!): LoginResponse!
+  loginWithPhoneNumber(input: LoginWithPhoneInput!): String!
   refreshToken: RefreshTokenResponse!
-  register(input: RegisterInput!): RegisterResponse!
+  register(email: String!, password: String!, username: String!): RegisterResponse!
+  registerWithPhoneNumber(input: RegisterWithPhoneInput!): String!
+  removeUserByUserId(userId: String!): String!
+  resendVerifyOTP(verifyId: String!): String!
+  resetPassword(input: ResetPasswordInput!): String!
+  setNewPassword(password: String!, userId: String!): String!
+  toggleContactFavourite(input: ToggleContactFavouriteInput!): String!
+  updateCommunitySequences(params: [UpdateSequenceInput!]!): String!
+  updateLinkSequences(params: [UpdateSequenceInput!]!): String!
+  updateProfileLinksSequences(input: UpdateProfileLinksSequencesInput!): String!
+  verifyOTP(input: VerifyOtpInput!): String!
+}
+
+input ProfileLinkSequenceInput {
+  id: String!
+  sequence: Float!
 }
 
 type Query {
+  allProfiles: String!
+  debugProfileData: String!
+  getMetaDataByUsername(username: String!): String!
+  getProfileByUsername(deviceId: String!, mode: String!, platform: String!, username: String!): String!
+  getPublicProfile(username: String!): String!
   health: String!
+  internalProfileStats: String!
+  me: User!
+  myProfile: String!
   profileHealth: String!
-  users: [UserResponse!]!
+  userProfileData: String!
+  users: [User!]!
 }
 
 type RefreshTokenResponse {
@@ -31,8 +141,8 @@ type RefreshTokenResponse {
 
 input RegisterInput {
   email: String!
-  name: String!
   password: String!
+  username: String!
 }
 
 type RegisterResponse {
@@ -40,8 +150,69 @@ type RegisterResponse {
   user: UserResponse!
 }
 
+input RegisterWithPhoneInput {
+  phoneNumber: String!
+}
+
+input ResetPasswordInput {
+  userId: String!
+}
+
+input ToggleContactFavouriteInput {
+  contactId: String!
+  favourite: Boolean!
+  profileId: String!
+}
+
+input UpdateProfileLinksSequencesInput {
+  params: [ProfileLinkSequenceInput!]!
+  profileId: String!
+}
+
+input UpdateSequenceInput {
+  id: String!
+  sequence: Float!
+}
+
+type User {
+  count_resend_otp: Int
+  created_at: DateTime!
+  created_by: String
+  email: String
+  id: String!
+  last_login: DateTime
+  login_type: String
+  new_password: Int
+  phone_number: String
+  role: role
+  social_id: String
+  social_token: String
+  status: status
+  updated_at: DateTime!
+  username: String
+  verified_at: DateTime
+}
+
 type UserResponse {
-  email: String!
-  id: Int!
-  name: String!
+  error: String
+  message: String
+  user: User
+}
+
+input VerifyOtpInput {
+  otp: String!
+  verifyId: String!
+}
+
+enum role {
+  ADMIN
+  CUSTOM
+  PUBLIC
+  USER
+}
+
+enum status {
+  ACTIVE
+  BANNED
+  INACTIVE
 }

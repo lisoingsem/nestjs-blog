@@ -7,4 +7,4 @@ import { PrismaModule } from 'shared/prisma';
   providers: [PermissionService],
   exports: [PermissionService],
 })
-export class PermissionModule {} 
+export class PermissionModule { }

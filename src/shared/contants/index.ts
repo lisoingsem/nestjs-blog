@@ -1,2 +1,2 @@
-export * from './roles.constant';
-export * from './permissions.contant';
+export * from './permission.constant';
+export * from './status.constant';

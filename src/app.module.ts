@@ -8,14 +8,14 @@ import { PrismaModule } from 'shared/prisma';
 import { SecurityService } from 'shared/services/security.service';
 import databaseConfig from '@config/database.config';
 import jwtConfig from '@config/jwt.config';
-import securityConfig from '@config/security.config'; 
+import securityConfig from '@config/security.config';
 
 import { AuthModule } from './modules/auth/auth.module';
-import { UserModule } from './modules/users/user.module';
-import { PermissionModule } from './modules/permissions/permission.module';
-import { AuditModule } from './modules/audit/audit.module';
+import { UserModule } from './modules/user/user.module';
 import { ContactModule } from './modules/contact/contact.module';
 import { ProfileModule } from './modules/profile/profile.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { PermissionsModule } from 'shared/modules/permissions.module';
 
 @Module({
   imports: [
@@ -28,13 +28,15 @@ import { ProfileModule } from './modules/profile/profile.module';
     // Prisma
     PrismaModule,
 
+    // Shared modules
+    PermissionsModule,
+
     // Modules
     AuthModule,
     UserModule,
-    PermissionModule,
-    AuditModule,
     ContactModule,
     ProfileModule,
+    AdminModule,
 
     // Throttler
     ThrottlerModule.forRootAsync({
@@ -61,4 +63,4 @@ import { ProfileModule } from './modules/profile/profile.module';
   providers: [SecurityService],
   exports: [SecurityService],
 })
-export class AppModule {}
+export class AppModule { }

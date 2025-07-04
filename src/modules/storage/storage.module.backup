@@ -1,0 +1,9 @@
+import { Module } from '@nestjs/common';
+import { StorageService } from './storage.service.backup';
+import { StorageResolver } from './storage.resolver.backup';
+
+@Module({
+    providers: [StorageService, StorageResolver],
+    exports: [StorageService],
+})
+export class StorageModule { } 

@@ -1,0 +1,27 @@
+import { Resolver, Mutation, Args } from '@nestjs/graphql';
+import { StorageService } from './storage.service.backup';
+
+@Resolver()
+export class StorageResolver {
+    constructor(private readonly storageService: StorageService) { }
+
+    @Mutation(() => String)
+    async generatePresignedUrl(
+        @Args('key') key: string,
+        @Args('contentType') contentType: string,
+        @Args('username', { nullable: true }) username?: string,
+        @Args('path', { nullable: true }) path?: string,
+    ): Promise<string> {
+        const result = await this.storageService.generatePresignedUrl({ key, contentType, username, path });
+        return result.presignedUrl;
+    }
+
+    @Mutation(() => String)
+    async deleteFile(
+        @Args('profileId') profileId: string,
+        @Args('url') url: string,
+    ): Promise<string> {
+        const result = await this.storageService.deleteFile(profileId, url);
+        return result.status === 200 ? 'deleted' : result.error || 'error';
+    }
+} 

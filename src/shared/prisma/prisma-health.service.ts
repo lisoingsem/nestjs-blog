@@ -17,7 +17,7 @@ export interface DatabaseHealth {
 export class PrismaHealthService {
   private readonly logger = new Logger(PrismaHealthService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async checkHealth(): Promise<DatabaseHealth> {
     const startTime = Date.now();
@@ -101,9 +101,9 @@ export class PrismaHealthService {
       // Test query performance
       const startTime = Date.now();
       await this.prisma.user.count();
-      await this.prisma.permission.count();
+      // await this.prisma.permission.count();
       const endTime = Date.now();
-      
+
       diagnostics.queryPerformance = {
         avgResponseTime: (endTime - startTime) / 2,
         queries: 2,

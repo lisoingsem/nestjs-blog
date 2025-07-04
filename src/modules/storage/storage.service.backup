@@ -1,0 +1,62 @@
+import { Injectable } from '@nestjs/common';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+@Injectable()
+export class StorageService {
+    private s3: S3Client;
+    private region: string;
+    private bucket: string;
+
+    constructor() {
+        this.region = process.env.AWS_S3_REGION || '';
+        this.bucket = process.env.AWS_S3_BUCKET || '';
+        this.s3 = new S3Client({
+            region: this.region,
+            credentials: {
+                accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID || '',
+                secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY || '',
+            },
+        });
+    }
+
+    private getFileUrl(key: string): string {
+        return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
+    }
+
+    private getPathUrl(url: string): string {
+        return url.split('amazonaws.com/')[1];
+    }
+
+    async generatePresignedUrl(input: { key: string; username?: string; path?: string; contentType: string }): Promise<{ presignedUrl: string; fileUrl: string }> {
+        let filename = '';
+        if (input.username) filename += `${input.username}/`;
+        if (input.path) filename += `${input.path}/`;
+        filename += input.key;
+        const params = {
+            Bucket: this.bucket,
+            Key: filename,
+            ContentType: input.contentType,
+        };
+        const command = new PutObjectCommand(params);
+        const url = await getSignedUrl(this.s3, command, { expiresIn: 60 * 10 });
+        return {
+            presignedUrl: url,
+            fileUrl: this.getFileUrl(filename),
+        };
+    }
+
+    async deleteFile(profileId: string, url: string): Promise<{ status: number; error?: string }> {
+        const filename = this.getPathUrl(url);
+        const command = new DeleteObjectCommand({
+            Bucket: this.bucket,
+            Key: filename,
+        });
+        try {
+            await this.s3.send(command);
+            return { status: 200 };
+        } catch (err) {
+            return { status: 500, error: 'internal_server_error' };
+        }
+    }
+} 

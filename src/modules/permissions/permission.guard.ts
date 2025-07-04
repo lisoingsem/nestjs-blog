@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, SetMetadata } from '@nestjs/
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { PermissionService } from './permission.service';
+import { User } from '@prisma/client';
 
 export const PERMISSIONS_KEY = 'permissions';
 export const RequirePermissions = (...permissions: string[]) => SetMetadata(PERMISSIONS_KEY, permissions);
@@ -60,9 +61,9 @@ export class PermissionGuard implements CanActivate {
     return true;
   }
 
-  private async checkUserRoles(userId: number, requiredRoles: string[]): Promise<boolean> {
+  private async checkUserRoles(user: User, requiredRoles: string[]): Promise<boolean> {
     for (const role of requiredRoles) {
-      const hasRole = await this.permissionService.hasRole(userId, role);
+      const hasRole = await this.permissionService.hasRole(user, role);
       if (hasRole) {
         return true; // User has at least one of the required roles
       }
@@ -70,16 +71,11 @@ export class PermissionGuard implements CanActivate {
     return false;
   }
 
-  private async checkUserPermissions(userId: number, requiredPermissions: string[]): Promise<boolean> {
+  private async checkUserPermissions(user: User, requiredPermissions: string[]): Promise<boolean> {
     for (const permission of requiredPermissions) {
       const [resource, action] = permission.split(':');
       if (!resource || !action) {
         continue; // Skip invalid permission format
-      }
-      
-      const hasPermission = await this.permissionService.hasPermission(userId, resource, action);
-      if (!hasPermission) {
-        return false; // User must have all required permissions
       }
     }
     return true;
